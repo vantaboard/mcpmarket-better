@@ -7,46 +7,43 @@ header.sticky.top-14 {
     padding-bottom: 0.75rem !important;
   }
 
-  /* Visually compact: breadcrumb | tabs on row 1, search | filter on row 2 */
+  /* One line: [ search ................ ] [ MCP Servers | Agent Skills ] [ Filter ] */
   section.py-4 .flex.flex-col {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    gap: 0.75rem !important;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto;
+    gap: 0.5rem !important;
     align-items: center;
   }
 
-  /* Kill Tailwind space-y margins between stacked children */
   section.py-4 .flex.flex-col > * + * {
     margin-top: 0 !important;
   }
 
   section.py-4 .flex.flex-col > nav[aria-label="Breadcrumb"] {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 0;
+    display: none !important;
   }
 
   section.py-4 .flex.flex-col > div:has([role="tablist"]) {
     grid-column: 2;
     grid-row: 1;
-    justify-self: end;
   }
 
-  /* Search + Filter share one full-width row so the input fills up to Filter */
+  /* Promote search + filter into the parent grid */
   section.py-4 .flex.flex-col > .mmb-search-row {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    display: flex;
-    align-items: stretch;
-    gap: 0.5rem;
-    width: 100%;
+    display: contents;
+  }
+
+  section.py-4 .flex.flex-col .mmb-search-row > .flex-1:has(input[name="search"]) {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
   }
 
-  section.py-4 .flex.flex-col > .mmb-search-row > .flex-1 {
-    flex: 1 1 auto;
-    min-width: 0;
+  section.py-4 .flex.flex-col .mmb-search-row > .mmb-filter {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: stretch;
   }
 
   /* Hide category chips without removing React nodes */
@@ -183,13 +180,28 @@ header.sticky.top-14 {
 
 @media (max-width: 640px) {
   header.sticky.top-14 section.py-4 .flex.flex-col {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
   }
 
-  header.sticky.top-14 section.py-4 .flex.flex-col > div:has([role="tablist"]),
-  header.sticky.top-14 section.py-4 .flex.flex-col > .mmb-search-row {
+  header.sticky.top-14
+    section.py-4
+    .flex.flex-col
+    .mmb-search-row
+    > .flex-1:has(input[name="search"]) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  header.sticky.top-14 section.py-4 .flex.flex-col > div:has([role="tablist"]) {
     grid-column: 1;
-    justify-self: stretch;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  header.sticky.top-14 section.py-4 .flex.flex-col .mmb-search-row > .mmb-filter {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .mmb-filter-label {
