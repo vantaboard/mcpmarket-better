@@ -62,8 +62,9 @@ header.sticky.top-14 {
   top: 0 !important;
   /* Below site-nav (z-60) so MCP Servers / Agent Skills menus overlay it */
   z-index: 40 !important;
-  /* Solid gray fill (host uses translucent bg + blur) */
-  background-color: hsl(0, 0%, 9%) !important;
+  /* Solid theme fill (host uses translucent bg + blur) — follows light/dark */
+  background-color: hsl(var(--background)) !important;
+  border-bottom: 1px solid hsl(var(--border));
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   /* Host grid-line overlay: absolute inset-0 + linear-gradient bg */
