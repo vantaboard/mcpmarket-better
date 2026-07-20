@@ -1,3 +1,6 @@
+import { navigateSearch } from "./search-params";
+import { ensureSearchInputBound } from "./search-navigation";
+
 const HEADER_SEL = "header.sticky.top-14";
 
 type Category = { name: string; count: number; slug: string };
@@ -50,39 +53,8 @@ function getSelectedCategory(header: HTMLElement): string | null {
   return null;
 }
 
-function findVisibleCategoryChip(
-  header: HTMLElement,
-  name: string,
-): HTMLElement | null {
-  const chips = header.querySelectorAll<HTMLElement>(
-    "section.border-t .scrollbar-hide > button",
-  );
-  for (const btn of chips) {
-    if (btn.querySelector("span")?.textContent?.trim() === name) {
-      return btn;
-    }
-  }
-  return null;
-}
-
-function navigateCategory(slug: string | null, name?: string | null): void {
-  const header = getHeader();
-
-  if (slug && name && header) {
-    const chip = findVisibleCategoryChip(header, name);
-    if (chip) {
-      chip.click();
-      return;
-    }
-  }
-
-  const url = new URL(location.href);
-  if (slug) {
-    url.searchParams.set("category_slug", slug);
-  } else {
-    url.searchParams.delete("category_slug");
-  }
-  location.assign(url.pathname + url.search + url.hash);
+function navigateCategory(slug: string | null): void {
+  navigateSearch({ category_slug: slug });
 }
 
 async function loadCategories(header: HTMLElement): Promise<Category[]> {
@@ -192,7 +164,7 @@ function renderFilterPanel(
       if (isActive) {
         navigateCategory(null);
       } else {
-        navigateCategory(cat.slug, cat.name);
+        navigateCategory(cat.slug);
       }
     });
     list.appendChild(item);
@@ -296,6 +268,7 @@ export function enhanceSearchChrome(): void {
 
   // Layout/hide is pure CSS — only inject the Filter control.
   ensureFilterControl(stack, header);
+  ensureSearchInputBound();
 }
 
 function scheduleEnhance(): void {
