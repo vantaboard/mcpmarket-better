@@ -142,9 +142,20 @@ function updateFilterButtonLabel(
 ): void {
   const label = btn.querySelector(".mmb-filter-label");
   if (!label) return;
-  label.textContent = selected || "Filter";
-  btn.classList.toggle("mmb-filter-btn--active", !!selected);
-  btn.title = selected ? `Category: ${selected}` : "Filter by category";
+  const next = selected || "Filter";
+  // Avoid no-op DOM writes — textContent assignment always mutates childList
+  // and would re-trigger MutationObserver into a tight loop.
+  if (label.textContent !== next) {
+    label.textContent = next;
+  }
+  const shouldBeActive = !!selected;
+  if (btn.classList.contains("mmb-filter-btn--active") !== shouldBeActive) {
+    btn.classList.toggle("mmb-filter-btn--active", shouldBeActive);
+  }
+  const nextTitle = selected ? `Category: ${selected}` : "Filter by category";
+  if (btn.title !== nextTitle) {
+    btn.title = nextTitle;
+  }
 }
 
 function renderFilterPanel(
@@ -196,21 +207,18 @@ function renderFilterPanel(
   panel.appendChild(list);
 }
 
+function syncFilterControl(header: HTMLElement): void {
+  const btn = header.querySelector<HTMLElement>(".mmb-filter-btn");
+  if (!btn) return;
+  updateFilterButtonLabel(btn, getSelectedCategory(header));
+}
+
 function ensureFilterControl(
   searchWrap: HTMLElement,
   header: HTMLElement,
 ): void {
   if (searchWrap.closest(".mmb-search-row")) {
-    const row = searchWrap.closest(".mmb-search-row") as HTMLElement;
-    const btn = row.querySelector<HTMLElement>(".mmb-filter-btn");
-    const panel = row.querySelector<HTMLElement>(".mmb-filter-panel");
-    if (btn && panel) {
-      const selected = getSelectedCategory(header);
-      updateFilterButtonLabel(btn, selected);
-      void loadCategories(header).then((cats) => {
-        renderFilterPanel(panel, cats, selected);
-      });
-    }
+    syncFilterControl(header);
     return;
   }
 
@@ -283,6 +291,15 @@ function relayoutTopRow(stack: HTMLElement): void {
   topRow.appendChild(tabsRow);
 }
 
+function headerNeedsEnhance(header: HTMLElement): boolean {
+  return (
+    !header.hasAttribute(ENHANCED_ATTR) ||
+    !header.querySelector(".mmb-top-row") ||
+    !header.querySelector(".mmb-filter") ||
+    !header.classList.contains("mmb-search-chrome")
+  );
+}
+
 export function enhanceSearchChrome(): void {
   if (!isSearchPage()) return;
 
@@ -318,16 +335,30 @@ function scheduleEnhance(): void {
   requestAnimationFrame(() => {
     enhanceScheduled = false;
     try {
+      // Pause observation while we mutate so we don't re-enter.
+      observer?.disconnect();
       enhanceSearchChrome();
     } catch (e) {
       console.error("[mcpmarket-better] enhance failed", e);
+    } finally {
+      observeHeader();
     }
   });
 }
 
-export function startSearchChromeObserver(): void {
-  scheduleEnhance();
+let observer: MutationObserver | null = null;
 
+function observeHeader(): void {
+  if (!observer) return;
+  const header = getHeader();
+  // Prefer the sticky chrome; fall back to body until it mounts.
+  observer.observe(header ?? document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+export function startSearchChromeObserver(): void {
   if (!documentListenersBound) {
     documentListenersBound = true;
 
@@ -347,33 +378,49 @@ export function startSearchChromeObserver(): void {
         });
       }
     });
+
+    // Sync label on SPA navigations without re-enhancing.
+    let lastHref = location.href;
+    const syncFromUrl = () => {
+      if (location.href === lastHref) return;
+      lastHref = location.href;
+      const header = getHeader();
+      if (!header) return;
+      if (headerNeedsEnhance(header)) {
+        scheduleEnhance();
+      } else {
+        syncFilterControl(header);
+      }
+    };
+    window.addEventListener("popstate", syncFromUrl);
+    // Next.js client navigations often don't fire popstate; poll lightly.
+    setInterval(syncFromUrl, 500);
   }
 
-  const observer = new MutationObserver(() => {
-    const header = getHeader();
-    if (!header) return;
+  if (!observer) {
+    observer = new MutationObserver((mutations) => {
+      const header = getHeader();
+      if (!header) {
+        scheduleEnhance();
+        return;
+      }
 
-    // Re-run when Next remounts the sticky chrome or our wrappers disappear
-    const needsWork =
-      !header.hasAttribute(ENHANCED_ATTR) ||
-      !header.querySelector(".mmb-top-row") ||
-      !header.querySelector(".mmb-filter") ||
-      !header.classList.contains("mmb-search-chrome");
+      // Ignore mutations we caused inside our own UI (filter panel renders, etc.).
+      const onlyOurs = mutations.every((m) => {
+        const el =
+          m.target instanceof Element ? m.target : m.target.parentElement;
+        return !!el?.closest?.(
+          ".mmb-filter, .mmb-search-row, .mmb-top-row, .mmb-category-strip",
+        );
+      });
+      if (onlyOurs) return;
 
-    if (needsWork) {
-      header.removeAttribute(ENHANCED_ATTR);
-      scheduleEnhance();
-      return;
-    }
+      if (headerNeedsEnhance(header)) {
+        header.removeAttribute(ENHANCED_ATTR);
+        scheduleEnhance();
+      }
+    });
+  }
 
-    // Keep filter label in sync if category chips remount with new selection
-    const btn = header.querySelector<HTMLElement>(".mmb-filter-btn");
-    if (btn) {
-      updateFilterButtonLabel(btn, getSelectedCategory(header));
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  window.addEventListener("popstate", () => scheduleEnhance());
+  scheduleEnhance();
 }
