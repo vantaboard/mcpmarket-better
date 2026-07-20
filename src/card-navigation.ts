@@ -10,16 +10,21 @@ function isSearchPage(): boolean {
 function openInBackground(url: string): void {
   const absolute = new URL(url, location.href).href;
   try {
-    // Tampermonkey / Violentmonkey: open without focusing this tab away.
-    GM.openInTab(absolute, {
-      active: false,
-      insert: true,
-      setParent: true,
-    });
+    // Second arg true = open in background (keep focus on search).
+    // Tampermonkey also accepts { active: false }; boolean form is portable.
+    const open = GM.openInTab as (
+      u: string,
+      opts?:
+        boolean | { active?: boolean; insert?: boolean; setParent?: boolean },
+    ) => void;
+    open(absolute, { active: false, insert: true, setParent: true });
   } catch (e) {
     console.error("[mcpmarket-better] openInTab failed", e);
-    // Last resort — may steal focus depending on browser settings.
-    window.open(absolute, "_blank", "noopener,noreferrer");
+    try {
+      GM.openInTab(absolute, true);
+    } catch (e2) {
+      console.error("[mcpmarket-better] openInTab fallback failed", e2);
+    }
   }
 }
 
