@@ -328,6 +328,54 @@ export function syncLoadMoreVisibility(hasMore: boolean): void {
   syncLoadMoreButton(hasMore);
 }
 
+export type ResultsViewSnapshot = {
+  gridHTML: string;
+  href: string;
+  softState: SoftState | null;
+};
+
+/** Capture results HTML + pagination so Favorites mode can restore place. */
+export function captureResultsView(): ResultsViewSnapshot | null {
+  const grid = findResultsGrid();
+  if (!grid) return null;
+  return {
+    gridHTML: grid.innerHTML,
+    href: location.pathname + location.search + location.hash,
+    softState: softState
+      ? {
+          page: softState.page,
+          hasMore: softState.hasMore,
+          requestId: softState.requestId,
+          params: { ...softState.params },
+        }
+      : null,
+  };
+}
+
+/** Restore a prior results view without refetching (preserves scroll target). */
+export function restoreResultsView(snapshot: ResultsViewSnapshot): boolean {
+  const grid = findResultsGrid();
+  if (!grid) return false;
+
+  grid.innerHTML = snapshot.gridHTML;
+  softState = snapshot.softState
+    ? {
+        page: snapshot.softState.page,
+        hasMore: snapshot.softState.hasMore,
+        requestId: snapshot.softState.requestId,
+        params: { ...snapshot.softState.params },
+      }
+    : null;
+
+  const current = location.pathname + location.search + location.hash;
+  if (snapshot.href && snapshot.href !== current) {
+    history.replaceState(history.state, "", snapshot.href);
+  }
+
+  syncLoadMoreButton(!!softState?.hasMore);
+  return true;
+}
+
 function showEmpty(grid: HTMLElement, q: string | null): void {
   grid.innerHTML = renderEmptyState(q);
   syncLoadMoreButton(false);

@@ -14,10 +14,13 @@ import {
 } from "./favorites-store";
 import { readSearchParams } from "./search-params";
 import {
+  captureResultsView,
   getResultsGrid,
   renderResultCard,
+  restoreResultsView,
   softSearchOrNavigate,
   syncLoadMoreVisibility,
+  type ResultsViewSnapshot,
 } from "./soft-search";
 
 const CARD_SEL = 'a[id^="tool-card-"]';
@@ -25,6 +28,32 @@ const HEART_SEL = ".mmb-fav-heart";
 
 let listenersBound = false;
 let cardObserver: MutationObserver | null = null;
+let resultsSnapshot: ResultsViewSnapshot | null = null;
+let savedScrollY = 0;
+
+function syncSearchInputFromUrl(): void {
+  const input = document.querySelector<HTMLInputElement>(
+    'header.sticky.top-14 input[name="search"]',
+  );
+  if (!input) return;
+  const q = new URLSearchParams(location.search).get("q") || "";
+  if (input.value === q) return;
+  const proto = Object.getPrototypeOf(input) as HTMLInputElement;
+  const desc = Object.getOwnPropertyDescriptor(proto, "value");
+  if (desc?.set) {
+    desc.set.call(input, q);
+  } else {
+    input.value = q;
+  }
+}
+
+function scrollToY(y: number): void {
+  window.scrollTo(0, y);
+  // Second frame: layout may still be settling after grid HTML swap.
+  requestAnimationFrame(() => {
+    window.scrollTo(0, y);
+  });
+}
 
 function parseStars(text: string): number | undefined {
   const t = text.trim().toLowerCase();
@@ -226,14 +255,33 @@ export async function renderFavoritesGrid(): Promise<void> {
 }
 
 async function enterFavoritesMode(): Promise<void> {
+  // Remember search place before we shrink the page to favorites.
+  savedScrollY = window.scrollY;
+  resultsSnapshot = captureResultsView();
+
   setFavoritesMode(true);
   syncFavModeButton();
   await renderFavoritesGrid();
+
+  // Without this, the old scrollY lands at the bottom of the shorter page.
+  scrollToY(0);
 }
 
 async function exitFavoritesMode(): Promise<void> {
   setFavoritesMode(false);
   syncFavModeButton();
+
+  const snap = resultsSnapshot;
+  const y = savedScrollY;
+  resultsSnapshot = null;
+
+  if (snap && restoreResultsView(snap)) {
+    syncSearchInputFromUrl();
+    await enhanceCardHearts();
+    scrollToY(y);
+    return;
+  }
+
   softSearchOrNavigate({});
 }
 
