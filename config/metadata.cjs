@@ -19,7 +19,7 @@ module.exports = {
   // Search is the only surface this script enhances.
   match: ["*://mcpmarket.com/search*"],
   // SPDX identifier — required for a clear Greasy Fork listing.
-  license: "WTFPL",
+  license: "MIT",
   grant: [
     "GM.xmlHttpRequest",
     "GM.setValue",

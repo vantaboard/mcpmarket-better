@@ -7,7 +7,7 @@
 // @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
 // @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
 // @match            *://mcpmarket.com/search*
-// @license          WTFPL
+// @license          MIT
 // @grant            GM.xmlHttpRequest
 // @grant            GM.setValue
 // @grant            GM.getValue
