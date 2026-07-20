@@ -2,7 +2,8 @@
    to React-owned nodes (React re-renders wipe those). */
 
 header.sticky.top-14 {
-  /* Kill host top-14 / md:top-16 sticky offset */
+  /* Stay sticky; only override host top-14 / md:top-16 offset */
+  position: sticky !important;
   top: 0 !important;
 
   section.py-4 {
