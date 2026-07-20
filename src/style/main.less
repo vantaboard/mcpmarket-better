@@ -2,13 +2,16 @@
 body:has(header.sticky.top-14) header.sticky.top-0 {
   position: relative !important;
   top: auto !important;
+  /* Stay above the search chrome so nav dropdowns aren't covered */
+  z-index: 60 !important;
 }
 
 /* …and keep only the search chrome sticky at the top of the viewport. */
 header.sticky.top-14 {
   position: sticky !important;
   top: 0 !important;
-  z-index: 50 !important;
+  /* Below site-nav (z-60) so MCP Servers / Agent Skills menus overlay it */
+  z-index: 40 !important;
   /* Solid gray fill (host uses translucent bg + blur) */
   background-color: hsl(0 0% 9%) !important;
   backdrop-filter: none !important;
