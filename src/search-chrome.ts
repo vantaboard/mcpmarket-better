@@ -1,11 +1,11 @@
 const HEADER_SEL = "header.sticky.top-14";
-const ENHANCED_ATTR = "data-mmb-enhanced";
 
 type Category = { name: string; count: number; slug: string };
 
 let categoriesCache: Category[] | null = null;
 let enhanceScheduled = false;
 let documentListenersBound = false;
+let observer: MutationObserver | null = null;
 
 function isSearchPage(): boolean {
   return location.pathname.includes("/search");
@@ -25,10 +25,6 @@ function getHeader(): HTMLElement | null {
 
 function getStack(header: HTMLElement): HTMLElement | null {
   return header.querySelector("section.py-4 .flex.flex-col");
-}
-
-function getCategorySection(header: HTMLElement): HTMLElement | null {
-  return header.querySelector("section.border-t");
 }
 
 function getSelectedCategory(header: HTMLElement): string | null {
@@ -143,8 +139,6 @@ function updateFilterButtonLabel(
   const label = btn.querySelector(".mmb-filter-label");
   if (!label) return;
   const next = selected || "Filter";
-  // Avoid no-op DOM writes — textContent assignment always mutates childList
-  // and would re-trigger MutationObserver into a tight loop.
   if (label.textContent !== next) {
     label.textContent = next;
   }
@@ -174,7 +168,7 @@ function renderFilterPanel(
     "mmb-filter-item" + (!selected ? " mmb-filter-item--active" : "");
   allBtn.innerHTML = `<span class="mmb-filter-item-name">All categories</span>`;
   allBtn.addEventListener("click", () => {
-    closeFilterPanel(panel.closest(".mmb-search-row") || panel);
+    closeFilterPanel(panel.closest(".mmb-filter") || panel);
     navigateCategory(null);
   });
   list.appendChild(allBtn);
@@ -194,7 +188,7 @@ function renderFilterPanel(
       cat.count,
     );
     item.addEventListener("click", () => {
-      closeFilterPanel(panel.closest(".mmb-search-row") || panel);
+      closeFilterPanel(panel.closest(".mmb-filter") || panel);
       if (isActive) {
         navigateCategory(null);
       } else {
@@ -213,22 +207,25 @@ function syncFilterControl(header: HTMLElement): void {
   updateFilterButtonLabel(btn, getSelectedCategory(header));
 }
 
-function ensureFilterControl(
-  searchWrap: HTMLElement,
-  header: HTMLElement,
-): void {
-  if (searchWrap.closest(".mmb-search-row")) {
+/**
+ * Append Filter beside the search field without wrapping React-owned nodes.
+ * Layout is handled by CSS grid on the existing stack.
+ */
+function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
+  const existing = stack.querySelector<HTMLElement>(":scope > .mmb-filter");
+  if (existing) {
     syncFilterControl(header);
     return;
   }
 
-  const row = document.createElement("div");
-  row.className = "mmb-search-row";
-  searchWrap.parentElement!.insertBefore(row, searchWrap);
-  row.appendChild(searchWrap);
+  const searchWrap = stack.querySelector<HTMLElement>(
+    ':scope > .flex-1:has(input[name="search"])',
+  );
+  if (!searchWrap) return;
 
   const filterRoot = document.createElement("div");
   filterRoot.className = "mmb-filter";
+  filterRoot.setAttribute("data-mmb", "filter");
 
   const btn = document.createElement("button");
   btn.type = "button";
@@ -257,13 +254,14 @@ function ensureFilterControl(
         renderFilterPanel(panel, cats, getSelectedCategory(header));
       });
     } else {
-      closeFilterPanel(row);
+      closeFilterPanel(filterRoot);
     }
   });
 
   filterRoot.appendChild(btn);
   filterRoot.appendChild(panel);
-  row.appendChild(filterRoot);
+  // Insert after the search wrap so grid placement is stable.
+  searchWrap.after(filterRoot);
 
   const selected = getSelectedCategory(header);
   updateFilterButtonLabel(btn, selected);
@@ -272,32 +270,12 @@ function ensureFilterControl(
   });
 }
 
-function relayoutTopRow(stack: HTMLElement): void {
-  if (stack.querySelector(".mmb-top-row")) return;
-
-  const breadcrumb = stack.querySelector<HTMLElement>(
-    'nav[aria-label="Breadcrumb"]',
-  );
-  const tabsRow = Array.from(stack.children).find((el) =>
-    el.querySelector('[role="tablist"]'),
-  ) as HTMLElement | undefined;
-
-  if (!breadcrumb || !tabsRow) return;
-
-  const topRow = document.createElement("div");
-  topRow.className = "mmb-top-row";
-  stack.insertBefore(topRow, breadcrumb);
-  topRow.appendChild(breadcrumb);
-  topRow.appendChild(tabsRow);
-}
-
-function headerNeedsEnhance(header: HTMLElement): boolean {
-  return (
-    !header.hasAttribute(ENHANCED_ATTR) ||
-    !header.querySelector(".mmb-top-row") ||
-    !header.querySelector(".mmb-filter") ||
-    !header.classList.contains("mmb-search-chrome")
-  );
+function headerNeedsFilter(header: HTMLElement): boolean {
+  const stack = getStack(header);
+  if (!stack) return false;
+  const hasSearch = !!stack.querySelector('input[name="search"]');
+  const hasFilter = !!stack.querySelector(":scope > .mmb-filter");
+  return hasSearch && !hasFilter;
 }
 
 export function enhanceSearchChrome(): void {
@@ -309,24 +287,8 @@ export function enhanceSearchChrome(): void {
   const stack = getStack(header);
   if (!stack) return;
 
-  header.classList.add("mmb-search-chrome");
-
-  const catSection = getCategorySection(header);
-  if (catSection) {
-    catSection.classList.add("mmb-category-strip");
-  }
-
-  relayoutTopRow(stack);
-
-  const searchInput = stack.querySelector<HTMLInputElement>(
-    'input[name="search"]',
-  );
-  const searchWrap = searchInput?.closest(".flex-1") as HTMLElement | null;
-  if (searchWrap) {
-    ensureFilterControl(searchWrap, header);
-  }
-
-  header.setAttribute(ENHANCED_ATTR, "1");
+  // Layout/hide is pure CSS — only inject the Filter control.
+  ensureFilterControl(stack, header);
 }
 
 function scheduleEnhance(): void {
@@ -335,7 +297,6 @@ function scheduleEnhance(): void {
   requestAnimationFrame(() => {
     enhanceScheduled = false;
     try {
-      // Pause observation while we mutate so we don't re-enter.
       observer?.disconnect();
       enhanceSearchChrome();
     } catch (e) {
@@ -346,12 +307,9 @@ function scheduleEnhance(): void {
   });
 }
 
-let observer: MutationObserver | null = null;
-
 function observeHeader(): void {
   if (!observer) return;
   const header = getHeader();
-  // Prefer the sticky chrome; fall back to body until it mounts.
   observer.observe(header ?? document.body, {
     childList: true,
     subtree: true,
@@ -365,35 +323,33 @@ export function startSearchChromeObserver(): void {
     document.addEventListener("click", (e) => {
       const target = e.target as Element | null;
       if (!target?.closest?.(".mmb-filter")) {
-        document.querySelectorAll(".mmb-search-row").forEach((row) => {
-          closeFilterPanel(row as HTMLElement);
+        document.querySelectorAll(".mmb-filter").forEach((root) => {
+          closeFilterPanel(root as HTMLElement);
         });
       }
     });
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        document.querySelectorAll(".mmb-search-row").forEach((row) => {
-          closeFilterPanel(row as HTMLElement);
+        document.querySelectorAll(".mmb-filter").forEach((root) => {
+          closeFilterPanel(root as HTMLElement);
         });
       }
     });
 
-    // Sync label on SPA navigations without re-enhancing.
     let lastHref = location.href;
     const syncFromUrl = () => {
       if (location.href === lastHref) return;
       lastHref = location.href;
       const header = getHeader();
       if (!header) return;
-      if (headerNeedsEnhance(header)) {
+      if (headerNeedsFilter(header)) {
         scheduleEnhance();
       } else {
         syncFilterControl(header);
       }
     };
     window.addEventListener("popstate", syncFromUrl);
-    // Next.js client navigations often don't fire popstate; poll lightly.
     setInterval(syncFromUrl, 500);
   }
 
@@ -405,22 +361,22 @@ export function startSearchChromeObserver(): void {
         return;
       }
 
-      // Ignore mutations we caused inside our own UI (filter panel renders, etc.).
       const onlyOurs = mutations.every((m) => {
         const el =
           m.target instanceof Element ? m.target : m.target.parentElement;
-        return !!el?.closest?.(
-          ".mmb-filter, .mmb-search-row, .mmb-top-row, .mmb-category-strip",
-        );
+        return !!el?.closest?.(".mmb-filter");
       });
       if (onlyOurs) return;
 
-      if (headerNeedsEnhance(header)) {
-        header.removeAttribute(ENHANCED_ATTR);
+      if (headerNeedsFilter(header)) {
         scheduleEnhance();
       }
     });
   }
 
+  // Run after hydration so we don't move nodes React still owns.
   scheduleEnhance();
+  window.setTimeout(() => scheduleEnhance(), 0);
+  window.setTimeout(() => scheduleEnhance(), 250);
+  window.setTimeout(() => scheduleEnhance(), 1000);
 }

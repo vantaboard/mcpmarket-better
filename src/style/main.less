@@ -1,52 +1,53 @@
-/* Scoped styles for mcpmarket-better — avoid host-page-wide overrides. */
+/* Target host sticky search chrome directly — do not rely on classes we add
+   to React-owned nodes (React re-renders wipe those). */
 
-.mmb-search-chrome {
-  /* Tighten vertical rhythm now that tabs share the breadcrumb row */
+header.sticky.top-14 {
   section.py-4 {
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
   }
 
-  .flex.flex-col.space-y-4 {
-    gap: 0.75rem;
-    /* space-y-4 still applies margin-top to children; neutralize after our wrap */
-    > * + * {
-      margin-top: 0;
-    }
+  /* Visually compact: breadcrumb | tabs on row 1, search | filter on row 2 */
+  section.py-4 .flex.flex-col {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 0.75rem !important;
+    align-items: center;
   }
 
-  .mmb-category-strip {
+  /* Kill Tailwind space-y margins between stacked children */
+  section.py-4 .flex.flex-col > * + * {
+    margin-top: 0 !important;
+  }
+
+  section.py-4 .flex.flex-col > nav[aria-label="Breadcrumb"] {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  section.py-4 .flex.flex-col > div:has([role="tablist"]) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  section.py-4 .flex.flex-col > .flex-1:has(input[name="search"]) {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  section.py-4 .flex.flex-col > .mmb-filter {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: stretch;
+  }
+
+  /* Hide category chips without removing React nodes */
+  > section.border-t {
     display: none !important;
-  }
-}
-
-.mmb-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  width: 100%;
-  min-width: 0;
-
-  /* Host tabs row already has justify-between; keep it from growing oddly */
-  > .flex.items-center.justify-between {
-    flex-shrink: 0;
-  }
-
-  nav[aria-label="Breadcrumb"] {
-    min-width: 0;
-  }
-}
-
-.mmb-search-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
-  width: 100%;
-  min-width: 0;
-
-  > .flex-1 {
-    min-width: 0;
   }
 }
 
@@ -61,7 +62,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  height: 2.75rem; /* match search input h-11 */
+  height: 2.75rem;
   padding: 0 0.875rem;
   border-radius: 0.5rem;
   border: 1px solid hsl(var(--border));
@@ -177,8 +178,18 @@
 }
 
 @media (max-width: 640px) {
-  .mmb-top-row {
-    flex-wrap: wrap;
+  header.sticky.top-14 section.py-4 .flex.flex-col {
+    grid-template-columns: 1fr;
+  }
+
+  header.sticky.top-14 section.py-4 .flex.flex-col > div:has([role="tablist"]),
+  header.sticky.top-14 section.py-4 .flex.flex-col > .mmb-filter {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  header.sticky.top-14 section.py-4 .flex.flex-col > .flex-1:has(input[name="search"]) {
+    grid-column: 1;
   }
 
   .mmb-filter-label {
