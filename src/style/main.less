@@ -1,1 +1,187 @@
 /* Scoped styles for mcpmarket-better — avoid host-page-wide overrides. */
+
+.mmb-search-chrome {
+  /* Tighten vertical rhythm now that tabs share the breadcrumb row */
+  section.py-4 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .flex.flex-col.space-y-4 {
+    gap: 0.75rem;
+    /* space-y-4 still applies margin-top to children; neutralize after our wrap */
+    > * + * {
+      margin-top: 0;
+    }
+  }
+
+  .mmb-category-strip {
+    display: none !important;
+  }
+}
+
+.mmb-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+
+  /* Host tabs row already has justify-between; keep it from growing oddly */
+  > .flex.items-center.justify-between {
+    flex-shrink: 0;
+  }
+
+  nav[aria-label="Breadcrumb"] {
+    min-width: 0;
+  }
+}
+
+.mmb-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+
+  > .flex-1 {
+    min-width: 0;
+  }
+}
+
+.mmb-filter {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.mmb-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem; /* match search input h-11 */
+  padding: 0 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted) / 0.5);
+  }
+
+  &.mmb-filter-btn--active {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+}
+
+.mmb-filter-icon {
+  flex-shrink: 0;
+}
+
+.mmb-filter-label {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mmb-filter-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 50;
+  width: 16rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--popover, var(--card)));
+  padding: 0.5rem;
+  box-shadow: none;
+}
+
+.mmb-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mmb-filter-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  &.mmb-filter-item--active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+
+    .mmb-filter-item-count {
+      background: hsl(var(--primary-foreground) / 0.15);
+      color: hsl(var(--primary-foreground));
+    }
+  }
+}
+
+.mmb-filter-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 0.5rem;
+}
+
+.mmb-filter-item-count {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 640px) {
+  .mmb-top-row {
+    flex-wrap: wrap;
+  }
+
+  .mmb-filter-label {
+    max-width: 6rem;
+  }
+}
