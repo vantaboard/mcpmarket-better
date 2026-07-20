@@ -64,6 +64,36 @@ function onSearchInput(e: Event): void {
   }, DEBOUNCE_MS);
 }
 
+/** Keep Radix tab visuals in sync when we intercept navigation. */
+function syncTypeTabs(type: string | null): void {
+  const tabs = document.querySelectorAll<HTMLElement>(
+    `${HEADER_SEL} [role="tablist"] [role="tab"]`,
+  );
+  for (const tab of tabs) {
+    const label = tab.textContent?.trim() || "";
+    const shouldActive =
+      (type === "skills" && label === "Agent Skills") ||
+      (type !== "skills" && label === "MCP Servers");
+    tab.setAttribute("data-state", shouldActive ? "active" : "inactive");
+    tab.setAttribute("aria-selected", shouldActive ? "true" : "false");
+    tab.tabIndex = shouldActive ? 0 : -1;
+    if (!shouldActive && document.activeElement === tab) {
+      tab.blur();
+    }
+  }
+
+  // Placeholder copy flips with type on the host.
+  const input = getSearchInput();
+  if (input) {
+    const catHint = input.placeholder.match(/\.\.\.\s+(.+)$/)?.[1] ?? "";
+    const base =
+      type === "skills"
+        ? "Search for Agent Skills..."
+        : "Search for MCP servers...";
+    input.placeholder = catHint ? `${base} ${catHint}` : base;
+  }
+}
+
 /**
  * Host Radix tabs navigate on mousedown (not click). Intercept early in
  * capture so q / category_slug are not wiped by the host handler.
@@ -90,11 +120,9 @@ function onTypeTabActivate(e: Event): void {
   e.preventDefault();
   e.stopImmediatePropagation();
 
-  if (label === "Agent Skills") {
-    softSearchOrNavigate({ type: "skills" });
-  } else {
-    softSearchOrNavigate({ type: null });
-  }
+  const nextType = label === "Agent Skills" ? "skills" : null;
+  syncTypeTabs(nextType);
+  softSearchOrNavigate({ type: nextType });
 }
 
 export function bindSearchInput(input: HTMLInputElement): void {
@@ -114,6 +142,8 @@ export function syncSearchInputFromUrl(): void {
   if (!isSearchPage()) return;
   if (location.href === lastSyncedHref) return;
   lastSyncedHref = location.href;
+
+  syncTypeTabs(readSearchParams().type);
 
   const input = getSearchInput();
   if (!input) return;
