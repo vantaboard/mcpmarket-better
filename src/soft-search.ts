@@ -37,6 +37,10 @@ let cachedGrid: HTMLElement | null = null;
 let abortController: AbortController | null = null;
 let requestSeq = 0;
 let loadMoreBound = false;
+let loadMoreInFlight = false;
+let infiniteScrollStarted = false;
+let sentinelVisible = false;
+let infiniteObserver: IntersectionObserver | null = null;
 
 function escapeHtml(s: string): string {
   return s
@@ -147,11 +151,85 @@ export function getResultsGrid(): HTMLElement | null {
 }
 
 function findLoadMoreButton(): HTMLButtonElement | null {
+  const marked = document.querySelector<HTMLButtonElement>(
+    "button[data-mmb-load-more], button.mmb-load-more",
+  );
+  if (marked) return marked;
+
   const buttons = document.querySelectorAll<HTMLButtonElement>("button");
   for (const btn of buttons) {
-    if (/load more/i.test(btn.textContent || "")) return btn;
+    if (/load more/i.test(btn.textContent || "")) {
+      btn.setAttribute("data-mmb-load-more", "1");
+      btn.classList.add("mmb-load-more");
+      return btn;
+    }
   }
   return null;
+}
+
+function hostHasLoadMore(): boolean {
+  return !!findLoadMoreButton();
+}
+
+/** Seed soft pagination from the host page so infinite scroll works before typing. */
+function ensureSoftStateFromPage(): void {
+  if (softState || isFavoritesMode()) return;
+  const grid = findResultsGrid();
+  if (!grid?.querySelector('a[id^="tool-card-"]')) return;
+  softState = {
+    page: 1,
+    hasMore: hostHasLoadMore(),
+    params: readSearchParams(),
+    requestId: requestSeq,
+  };
+}
+
+function ensureInfiniteSentinel(): HTMLElement | null {
+  const grid = findResultsGrid();
+  if (!grid) return null;
+
+  let sentinel = document.querySelector<HTMLElement>(".mmb-infinite-sentinel");
+  if (!sentinel) {
+    sentinel = document.createElement("div");
+    sentinel.className = "mmb-infinite-sentinel";
+    sentinel.setAttribute("aria-hidden", "true");
+  }
+
+  // Keep the sentinel just after the results grid (before Browse by Category).
+  if (sentinel.previousElementSibling !== grid) {
+    grid.after(sentinel);
+  }
+  return sentinel;
+}
+
+function syncInfiniteSentinel(hasMore: boolean): void {
+  const sentinel = ensureInfiniteSentinel();
+  if (!sentinel || !infiniteObserver) return;
+
+  if (hasMore && !isFavoritesMode()) {
+    sentinel.hidden = false;
+    infiniteObserver.observe(sentinel);
+  } else {
+    sentinel.hidden = true;
+    infiniteObserver.unobserve(sentinel);
+    sentinelVisible = false;
+  }
+}
+
+async function maybeLoadMore(): Promise<void> {
+  if (!sentinelVisible || isFavoritesMode() || loadMoreInFlight) return;
+  ensureSoftStateFromPage();
+  if (!softState?.hasMore) {
+    syncLoadMoreButton(false);
+    return;
+  }
+
+  await loadMoreSoft();
+
+  // Still near the bottom with more pages — keep going.
+  if (sentinelVisible && softState?.hasMore && !isFavoritesMode()) {
+    void maybeLoadMore();
+  }
 }
 
 function buildListUrl(params: SearchParams, page: number): string {
@@ -210,13 +288,23 @@ function ensureLoadMoreHandler(): void {
     "click",
     (e) => {
       if (isFavoritesMode()) return;
+      ensureSoftStateFromPage();
       if (!softState?.hasMore) return;
       const target = e.target as Element | null;
       const btn = target?.closest?.("button");
-      if (!btn || !/load more/i.test(btn.textContent || "")) return;
+      if (
+        !btn ||
+        !(
+          btn.hasAttribute("data-mmb-load-more") ||
+          btn.classList.contains("mmb-load-more") ||
+          /load more/i.test(btn.textContent || "")
+        )
+      ) {
+        return;
+      }
       e.preventDefault();
       e.stopImmediatePropagation();
-      void loadMoreSoft();
+      void maybeLoadMore();
     },
     true,
   );
@@ -224,13 +312,16 @@ function ensureLoadMoreHandler(): void {
 
 function syncLoadMoreButton(hasMore: boolean): void {
   const btn = findLoadMoreButton();
-  if (!btn) return;
-  const show = hasMore && !isFavoritesMode();
-  btn.hidden = !show;
-  btn.style.display = show ? "" : "none";
-  if (show) {
-    btn.disabled = false;
+  if (btn) {
+    btn.setAttribute("data-mmb-load-more", "1");
+    btn.classList.add("mmb-load-more");
+    // Infinite scroll replaces the control — keep it out of the way.
+    btn.hidden = true;
+    btn.style.display = "none";
+    btn.disabled = true;
+    btn.setAttribute("aria-hidden", "true");
   }
+  syncInfiniteSentinel(hasMore && !isFavoritesMode());
 }
 
 export function syncLoadMoreVisibility(hasMore: boolean): void {
@@ -246,21 +337,25 @@ function showEmpty(grid: HTMLElement, q: string | null): void {
 async function loadMoreSoft(): Promise<void> {
   if (isFavoritesMode()) return;
   if (!softState?.hasMore) return;
+  if (loadMoreInFlight) return;
   const grid = findResultsGrid();
   if (!grid) return;
 
+  loadMoreInFlight = true;
   const nextPage = softState.page + 1;
   const myId = ++requestSeq;
   softState.requestId = myId;
 
-  abortController?.abort();
-  abortController = new AbortController();
+  // Don't abort an in-flight first-page softSearch from a stray load-more;
+  // only replace the shared controller for this pagination request.
+  const localAbort = new AbortController();
+  abortController = localAbort;
 
   try {
     const { items, hasMore, isSkills } = await fetchList(
       softState.params,
       nextPage,
-      abortController.signal,
+      localAbort.signal,
     );
     if (myId !== requestSeq || !softState) return;
 
@@ -278,11 +373,13 @@ async function loadMoreSoft(): Promise<void> {
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return;
     if (e instanceof SoftSearchHalt) {
-      softState.hasMore = false;
+      if (softState) softState.hasMore = false;
       syncLoadMoreButton(false);
       return;
     }
     console.error("[mcpmarket-better] soft load more failed", e);
+  } finally {
+    loadMoreInFlight = false;
   }
 }
 
@@ -323,10 +420,12 @@ export async function softSearch(
   replaceSearchUrl(updates);
 
   ensureLoadMoreHandler();
+  ensureInfiniteScroll();
 
   const myId = ++requestSeq;
   abortController?.abort();
   abortController = new AbortController();
+  loadMoreInFlight = false;
 
   softState = {
     page: 1,
@@ -384,4 +483,57 @@ export function softSearchOrNavigate(updates: SearchParamUpdates): void {
   void softSearch(updates).then((ok) => {
     if (!ok) navigateSearch(updates);
   });
+}
+
+/** Watch near the bottom of results and auto-fetch the next page. */
+export function ensureInfiniteScroll(): void {
+  ensureLoadMoreHandler();
+
+  if (!infiniteObserver) {
+    infiniteObserver = new IntersectionObserver(
+      (entries) => {
+        sentinelVisible = entries.some((e) => e.isIntersecting);
+        if (sentinelVisible) void maybeLoadMore();
+      },
+      {
+        root: null,
+        // Prefetch while the last cards are still a screenful away.
+        rootMargin: "800px 0px",
+        threshold: 0,
+      },
+    );
+  }
+
+  if (!infiniteScrollStarted) {
+    infiniteScrollStarted = true;
+
+    const boot = (): void => {
+      if (!location.pathname.includes("/search")) return;
+      ensureSoftStateFromPage();
+      syncLoadMoreButton(!!softState?.hasMore);
+    };
+    boot();
+    window.setTimeout(boot, 250);
+    window.setTimeout(boot, 1000);
+
+    // Host remounts can drop our sentinel or re-show Load More — tidy only.
+    const mo = new MutationObserver(() => {
+      if (!location.pathname.includes("/search")) return;
+      const btn = findLoadMoreButton();
+      if (btn) {
+        btn.setAttribute("data-mmb-load-more", "1");
+        btn.classList.add("mmb-load-more");
+        btn.hidden = true;
+        btn.style.display = "none";
+        btn.disabled = true;
+      }
+      if (!softState) ensureSoftStateFromPage();
+      ensureInfiniteSentinel();
+      syncInfiniteSentinel(!!softState?.hasMore && !isFavoritesMode());
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
+
+  ensureSoftStateFromPage();
+  syncLoadMoreButton(!!softState?.hasMore);
 }

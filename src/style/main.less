@@ -377,3 +377,18 @@ body:has(header.sticky.top-14) .py-8.md\:py-12 {
     max-width: 6rem;
   }
 }
+
+/* Infinite scroll replaces the host control */
+button.mmb-load-more,
+button[data-mmb-load-more="1"] {
+  display: none !important;
+}
+
+.mmb-infinite-sentinel {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
