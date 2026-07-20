@@ -1,4 +1,5 @@
 import "./style/main.less";
+import { startCardNavigation } from "./card-navigation";
 import { startFavorites } from "./favorites-ui";
 import { startSearchChromeObserver } from "./search-chrome";
 import { startSearchNavigation } from "./search-navigation";
@@ -8,6 +9,7 @@ async function main() {
   startSearchChromeObserver();
   startSearchNavigation();
   startFavorites();
+  startCardNavigation();
 }
 
 main().catch((e) => {
