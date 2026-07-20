@@ -51,3 +51,11 @@ export function navigateSearch(updates: SearchParamUpdates = {}): void {
   if (next === current) return;
   location.assign(next);
 }
+
+/** Update the address bar without a page navigation (no skeleton flash). */
+export function replaceSearchUrl(updates: SearchParamUpdates = {}): void {
+  const next = buildSearchUrl(updates);
+  const current = location.pathname + location.search + location.hash;
+  if (next === current) return;
+  history.replaceState(history.state, "", next);
+}

@@ -1,4 +1,5 @@
 import { navigateSearch, readSearchParams } from "./search-params";
+import { softSearch } from "./soft-search";
 
 const HEADER_SEL = "header.sticky.top-14";
 const DEBOUNCE_MS = 300;
@@ -62,7 +63,11 @@ function onSearchInput(e: Event): void {
     const next = input.value.trim() || null;
     const current = readSearchParams().q;
     if (next === current) return;
-    navigateSearch({ q: next });
+    // Soft update: fetch + replace results grid, replaceState URL — no
+    // full navigation, so the sticky chrome does not skeleton-remount.
+    void softSearch(next).then((ok) => {
+      if (!ok) navigateSearch({ q: next });
+    });
   }, DEBOUNCE_MS);
 }
 
