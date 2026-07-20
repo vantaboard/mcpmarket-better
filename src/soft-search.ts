@@ -1,11 +1,14 @@
 import {
+  navigateSearch,
   readSearchParams,
   replaceSearchUrl,
   type SearchParams,
+  type SearchParamUpdates,
 } from "./search-params";
 
 const PAGE_LIMIT = 21;
-const GRID_SEL = 'div.grid.gap-6:has(a[id^="tool-card-"])';
+const GRID_SEL =
+  'div.grid.gap-6[data-mmb-results], div.grid.gap-6:has(a[id^="tool-card-"])';
 
 type ListItem = {
   name: string;
@@ -27,6 +30,7 @@ type SoftState = {
 };
 
 let softState: SoftState | null = null;
+let cachedGrid: HTMLElement | null = null;
 let abortController: AbortController | null = null;
 let requestSeq = 0;
 let loadMoreBound = false;
@@ -93,8 +97,36 @@ function renderCard(item: ListItem, isSkills: boolean): string {
   return `<a id="tool-card-${escapeHtml(item.slug)}" class="group block h-full" href="${escapeHtml(href)}" data-mmb-soft="1"><div class="group relative h-full rounded-lg border border-border bg-card transition-colors duration-200 hover:border-foreground/20 hover:bg-accent/50"><div class="flex h-full flex-col p-5"><div class="mb-3 flex items-center justify-between gap-2"><div class="flex items-center gap-2.5">${avatarHtml}<h3 class="line-clamp-1 font-geist-mono text-base font-semibold text-foreground transition-colors group-hover:text-foreground/80">${name}</h3></div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground/60"><path d="M7 7h10v10"></path><path d="M7 17 17 7"></path></svg></div><p class="mb-4 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">${desc}</p><div class="mt-auto flex items-center justify-between"><div class="flex items-center gap-2">${catHtml}</div>${starsHtml}</div></div></div></a>`;
 }
 
+function renderEmptyState(q: string | null): string {
+  const query = q ? ` for “${escapeHtml(q)}”` : "";
+  return `<div class="mmb-empty-results" data-mmb-empty="1" style="grid-column: 1 / -1; padding: 3rem 1rem; text-align: center;">
+    <p class="font-geist-mono text-base font-semibold text-foreground" style="margin: 0 0 0.5rem;">No search results${query}</p>
+    <p class="text-sm text-muted-foreground" style="margin: 0;">Try a different query or clear the category filter.</p>
+  </div>`;
+}
+
 function findResultsGrid(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(GRID_SEL);
+  if (cachedGrid?.isConnected) return cachedGrid;
+
+  const found = document.querySelector<HTMLElement>(GRID_SEL);
+  if (found) {
+    found.setAttribute("data-mmb-results", "1");
+    cachedGrid = found;
+    return found;
+  }
+
+  // Fallback: common host results grid class without requiring cards.
+  const fallback = document.querySelector<HTMLElement>(
+    "div.grid.gap-6.sm\\:grid-cols-1, div.grid.gap-6.md\\:grid-cols-2",
+  );
+  if (fallback) {
+    fallback.setAttribute("data-mmb-results", "1");
+    cachedGrid = fallback;
+    return fallback;
+  }
+
+  cachedGrid = null;
+  return null;
 }
 
 function findLoadMoreButton(): HTMLButtonElement | null {
@@ -119,14 +151,35 @@ function buildListUrl(params: SearchParams, page: number): string {
   return `/api/list?${qs.toString()}`;
 }
 
+class SoftSearchHalt extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SoftSearchHalt";
+  }
+}
+
 async function fetchList(
   params: SearchParams,
   page: number,
   signal: AbortSignal,
 ): Promise<{ items: ListItem[]; hasMore: boolean; isSkills: boolean }> {
   const isSkills = params.type === "skills";
-  const res = await fetch(buildListUrl(params, page), { signal });
-  if (!res.ok) throw new Error(`list ${res.status}`);
+  // Manual redirects so a 301/302 does not get followed into a loop.
+  const res = await fetch(buildListUrl(params, page), {
+    signal,
+    redirect: "manual",
+  });
+
+  if (
+    res.type === "opaqueredirect" ||
+    (res.status >= 300 && res.status < 400)
+  ) {
+    throw new SoftSearchHalt(`redirect ${res.status || "opaque"}`);
+  }
+  if (!res.ok) {
+    throw new SoftSearchHalt(`list ${res.status}`);
+  }
+
   const data = await res.json();
   const items: ListItem[] = isSkills ? data.skills || [] : data.tools || [];
   const hasMore = !!data.pagination?.hasMore;
@@ -161,6 +214,12 @@ function syncLoadMoreButton(hasMore: boolean): void {
   }
 }
 
+function showEmpty(grid: HTMLElement, q: string | null): void {
+  grid.innerHTML = renderEmptyState(q);
+  syncLoadMoreButton(false);
+  if (softState) softState.hasMore = false;
+}
+
 async function loadMoreSoft(): Promise<void> {
   if (!softState?.hasMore) return;
   const grid = findResultsGrid();
@@ -181,6 +240,12 @@ async function loadMoreSoft(): Promise<void> {
     );
     if (myId !== requestSeq || !softState) return;
 
+    if (items.length === 0) {
+      softState.hasMore = false;
+      syncLoadMoreButton(false);
+      return;
+    }
+
     const html = items.map((item) => renderCard(item, isSkills)).join("");
     grid.insertAdjacentHTML("beforeend", html);
     softState.page = nextPage;
@@ -188,21 +253,42 @@ async function loadMoreSoft(): Promise<void> {
     syncLoadMoreButton(hasMore);
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return;
+    if (e instanceof SoftSearchHalt) {
+      softState.hasMore = false;
+      syncLoadMoreButton(false);
+      return;
+    }
     console.error("[mcpmarket-better] soft load more failed", e);
   }
+}
+
+function mergeParams(updates: SearchParamUpdates): SearchParams {
+  const current = readSearchParams();
+  return {
+    q: updates.q !== undefined ? updates.q : current.q,
+    category_slug:
+      updates.category_slug !== undefined
+        ? updates.category_slug
+        : current.category_slug,
+    type: updates.type !== undefined ? updates.type : current.type,
+  };
 }
 
 /**
  * Update results in-place and sync the URL via replaceState — no full
  * navigation, so the sticky search chrome does not remount/skeleton.
- * Returns false when the results grid is missing (caller should hard-nav).
+ * Returns false only when there is no results container to update.
+ * Redirects / empty / errors show an empty state and still return true
+ * so callers must not fall back to hard navigation (host 301 loops).
  */
-export async function softSearch(q: string | null): Promise<boolean> {
+export async function softSearch(
+  updates: SearchParamUpdates,
+): Promise<boolean> {
   const grid = findResultsGrid();
   if (!grid) return false;
 
-  const params: SearchParams = { ...readSearchParams(), q };
-  replaceSearchUrl({ q });
+  const params = mergeParams(updates);
+  replaceSearchUrl(updates);
 
   ensureLoadMoreHandler();
 
@@ -225,6 +311,11 @@ export async function softSearch(q: string | null): Promise<boolean> {
     );
     if (myId !== requestSeq) return true;
 
+    if (items.length === 0) {
+      showEmpty(grid, params.q);
+      return true;
+    }
+
     grid.innerHTML = items.map((item) => renderCard(item, isSkills)).join("");
     softState.hasMore = hasMore;
     softState.page = 1;
@@ -232,7 +323,22 @@ export async function softSearch(q: string | null): Promise<boolean> {
     return true;
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return true;
+    if (e instanceof SoftSearchHalt) {
+      if (myId === requestSeq) showEmpty(grid, params.q);
+      return true;
+    }
     console.error("[mcpmarket-better] soft search failed", e);
-    return false;
+    if (myId === requestSeq) showEmpty(grid, params.q);
+    return true;
   }
+}
+
+/**
+ * Prefer soft in-place update. Hard-navigate only when there is no results
+ * grid (browse landing). Soft path already handles empty/redirect safely.
+ */
+export function softSearchOrNavigate(updates: SearchParamUpdates): void {
+  void softSearch(updates).then((ok) => {
+    if (!ok) navigateSearch(updates);
+  });
 }

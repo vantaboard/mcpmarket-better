@@ -1,5 +1,5 @@
-import { navigateSearch } from "./search-params";
 import { ensureSearchInputBound } from "./search-navigation";
+import { softSearchOrNavigate } from "./soft-search";
 
 const HEADER_SEL = "header.sticky.top-14";
 
@@ -54,7 +54,7 @@ function getSelectedCategory(header: HTMLElement): string | null {
 }
 
 function navigateCategory(slug: string | null): void {
-  navigateSearch({ category_slug: slug });
+  softSearchOrNavigate({ category_slug: slug });
 }
 
 async function loadCategories(header: HTMLElement): Promise<Category[]> {

@@ -1,5 +1,5 @@
-import { navigateSearch, readSearchParams } from "./search-params";
-import { softSearch } from "./soft-search";
+import { readSearchParams } from "./search-params";
+import { softSearch, softSearchOrNavigate } from "./soft-search";
 
 const HEADER_SEL = "header.sticky.top-14";
 const DEBOUNCE_MS = 300;
@@ -31,11 +31,6 @@ function setNativeInputValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function navigateFromQuery(raw: string): void {
-  const q = raw.trim() || null;
-  navigateSearch({ q });
-}
-
 function onSearchSubmit(e: Event): void {
   if (!isSearchPage()) return;
   const form = e.target as HTMLFormElement | null;
@@ -49,7 +44,7 @@ function onSearchSubmit(e: Event): void {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  navigateFromQuery(input.value);
+  softSearchOrNavigate({ q: input.value.trim() || null });
 }
 
 function onSearchInput(e: Event): void {
@@ -63,11 +58,9 @@ function onSearchInput(e: Event): void {
     const next = input.value.trim() || null;
     const current = readSearchParams().q;
     if (next === current) return;
-    // Soft update: fetch + replace results grid, replaceState URL — no
-    // full navigation, so the sticky chrome does not skeleton-remount.
-    void softSearch(next).then((ok) => {
-      if (!ok) navigateSearch({ q: next });
-    });
+    // Soft update only — do not fall back to location.assign on empty /
+    // redirect; that can 301-loop on some category+q combinations.
+    void softSearch({ q: next });
   }, DEBOUNCE_MS);
 }
 
@@ -91,9 +84,9 @@ function onTypeTabClick(e: Event): void {
   e.stopImmediatePropagation();
 
   if (label === "Agent Skills") {
-    navigateSearch({ type: "skills" });
+    softSearchOrNavigate({ type: "skills" });
   } else {
-    navigateSearch({ type: null });
+    softSearchOrNavigate({ type: null });
   }
 }
 
