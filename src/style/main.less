@@ -106,7 +106,9 @@ header.sticky.top-14 {
   right: 0;
   top: calc(100% + 0.5rem);
   z-index: 50;
-  width: 16rem;
+  width: max-content;
+  min-width: 16rem;
+  max-width: min(28rem, calc(100vw - 2rem));
   max-height: 80vh;
   overflow-y: auto;
   border-radius: 0.5rem;
@@ -158,11 +160,9 @@ header.sticky.top-14 {
 }
 
 .mmb-filter-item-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 1 1 auto;
   white-space: nowrap;
-  padding-right: 0.5rem;
+  padding-right: 0.75rem;
 }
 
 .mmb-filter-item-count {
