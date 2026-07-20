@@ -82,10 +82,20 @@ function syncTypeTabs(type: string | null): void {
     }
   }
 
-  // Placeholder copy flips with type on the host.
+  // Placeholder flips with type; keep category hint from Filter / URL slug.
   const input = getSearchInput();
   if (input) {
-    const catHint = input.placeholder.match(/\.\.\.\s+(.+)$/)?.[1] ?? "";
+    const filterLabel = document
+      .querySelector(".mmb-filter-label")
+      ?.textContent?.trim();
+    const catHint =
+      filterLabel && filterLabel !== "Filter"
+        ? filterLabel
+        : (new URLSearchParams(location.search).get("category_slug") || "")
+            .split("-")
+            .filter(Boolean)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" ");
     const base =
       type === "skills"
         ? "Search for Agent Skills..."

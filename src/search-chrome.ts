@@ -59,19 +59,28 @@ function getSelectedCategory(header: HTMLElement): string | null {
     .join(" ");
 }
 
+/** Host-style placeholder: "Search for MCP servers... {Category}". */
+function syncSearchPlaceholder(header: HTMLElement): void {
+  const input = header.querySelector<HTMLInputElement>('input[name="search"]');
+  if (!input) return;
+
+  const type = new URLSearchParams(location.search).get("type");
+  const category = getSelectedCategory(header);
+  const base =
+    type === "skills"
+      ? "Search for Agent Skills..."
+      : "Search for MCP servers...";
+  const next = category ? `${base} ${category}` : base;
+  if (input.placeholder !== next) {
+    input.placeholder = next;
+  }
+}
+
 function navigateCategory(slug: string | null): void {
   softSearchOrNavigate({ category_slug: slug });
-  // Soft nav uses replaceState; sync Filter label immediately from URL.
+  // Soft nav uses replaceState; sync Filter label + placeholder from URL.
   const header = getHeader();
   if (!header) return;
-  if (!slug) {
-    const input = header.querySelector<HTMLInputElement>(
-      'input[name="search"]',
-    );
-    if (input?.placeholder) {
-      input.placeholder = input.placeholder.replace(/\.\.\.\s+.+$/, "...");
-    }
-  }
   syncFilterControl(header);
 }
 
@@ -193,8 +202,10 @@ function renderFilterPanel(
 
 function syncFilterControl(header: HTMLElement): void {
   const btn = header.querySelector<HTMLElement>(".mmb-filter-btn");
-  if (!btn) return;
-  updateFilterButtonLabel(btn, getSelectedCategory(header));
+  if (btn) {
+    updateFilterButtonLabel(btn, getSelectedCategory(header));
+  }
+  syncSearchPlaceholder(header);
 }
 
 /**
@@ -305,6 +316,7 @@ export function enhanceSearchChrome(): void {
   // Layout/hide is pure CSS — only inject the Filter control.
   ensureFilterControl(stack, header);
   ensureTypeTabTooltips(header);
+  syncSearchPlaceholder(header);
   ensureSearchInputBound();
 }
 
