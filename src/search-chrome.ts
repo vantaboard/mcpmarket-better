@@ -1,3 +1,4 @@
+import { ensureFavoritesModeButton } from "./favorites-ui";
 import { ensureSearchInputBound } from "./search-navigation";
 import { softSearchOrNavigate } from "./soft-search";
 
@@ -217,6 +218,7 @@ function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
     ":scope > .mmb-search-row",
   );
   if (existingRow) {
+    ensureFavoritesModeButton(existingRow);
     syncFilterControl(header);
     return;
   }
@@ -269,6 +271,7 @@ function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
 
   filterRoot.appendChild(btn);
   filterRoot.appendChild(panel);
+  ensureFavoritesModeButton(row);
   row.appendChild(filterRoot);
 
   const selected = getSelectedCategory(header);

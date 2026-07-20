@@ -1,3 +1,6 @@
+import { renderHeartButton } from "./favorites-heart";
+import { isFavoritesMode, refreshFavoritesIfActive } from "./favorites-mode";
+import { favoriteId, isFavoriteSync } from "./favorites-store";
 import {
   navigateSearch,
   readSearchParams,
@@ -72,7 +75,7 @@ function categoryLabel(item: ListItem): string {
   return item.categories?.[0]?.name || item.category_name || "";
 }
 
-function renderCard(item: ListItem, isSkills: boolean): string {
+export function renderResultCard(item: ListItem, isSkills: boolean): string {
   const href = itemHref(item, isSkills);
   const name = escapeHtml(item.name || "");
   const desc = escapeHtml(item.description || "");
@@ -80,6 +83,12 @@ function renderCard(item: ListItem, isSkills: boolean): string {
   const avatar = escapeHtml(avatarSrc(item.owner_avatar));
   const cat = escapeHtml(categoryLabel(item));
   const stars = item.github_stars ?? 0;
+  const type =
+    isSkills || item.type === "skills" || item.type === "skill"
+      ? "skills"
+      : "server";
+  const favId = favoriteId(type, item.slug);
+  const heart = renderHeartButton(favId, isFavoriteSync(favId));
 
   const avatarHtml = avatar
     ? `<img alt="${owner}" loading="lazy" width="20" height="20" decoding="async" class="shrink-0 rounded-full object-cover opacity-50 grayscale transition-all duration-200 group-hover:opacity-100 group-hover:grayscale-0" src="${avatar}" style="color: transparent;">`
@@ -94,7 +103,11 @@ function renderCard(item: ListItem, isSkills: boolean): string {
     ? `<div class="inline-flex items-center border transition-colors rounded-lg border-border px-1.5 py-0 font-geist-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">${cat}</div>`
     : "";
 
-  return `<a id="tool-card-${escapeHtml(item.slug)}" class="group block h-full" href="${escapeHtml(href)}" data-mmb-soft="1"><div class="group relative h-full rounded-lg border border-border bg-card transition-colors duration-200 hover:border-foreground/20 hover:bg-accent/50"><div class="flex h-full flex-col p-5"><div class="mb-3 flex items-center justify-between gap-2"><div class="flex items-center gap-2.5">${avatarHtml}<h3 class="line-clamp-1 font-geist-mono text-base font-semibold text-foreground transition-colors group-hover:text-foreground/80">${name}</h3></div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground/60"><path d="M7 7h10v10"></path><path d="M7 17 17 7"></path></svg></div><p class="mb-4 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">${desc}</p><div class="mt-auto flex items-center justify-between"><div class="flex items-center gap-2">${catHtml}</div>${starsHtml}</div></div></div></a>`;
+  return `<a id="tool-card-${escapeHtml(item.slug)}" class="group block h-full" href="${escapeHtml(href)}" data-mmb-soft="1"><div class="group relative h-full rounded-lg border border-border bg-card transition-colors duration-200 hover:border-foreground/20 hover:bg-accent/50">${heart}<div class="flex h-full flex-col p-5"><div class="mb-3 flex items-center justify-between gap-2"><div class="flex items-center gap-2.5">${avatarHtml}<h3 class="line-clamp-1 font-geist-mono text-base font-semibold text-foreground transition-colors group-hover:text-foreground/80">${name}</h3></div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground/60"><path d="M7 7h10v10"></path><path d="M7 17 17 7"></path></svg></div><p class="mb-4 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">${desc}</p><div class="mt-auto flex items-center justify-between"><div class="flex items-center gap-2">${catHtml}</div>${starsHtml}</div></div></div></a>`;
+}
+
+function renderCard(item: ListItem, isSkills: boolean): string {
+  return renderResultCard(item, isSkills);
 }
 
 function renderEmptyState(q: string | null): string {
@@ -127,6 +140,10 @@ function findResultsGrid(): HTMLElement | null {
 
   cachedGrid = null;
   return null;
+}
+
+export function getResultsGrid(): HTMLElement | null {
+  return findResultsGrid();
 }
 
 function findLoadMoreButton(): HTMLButtonElement | null {
@@ -192,6 +209,7 @@ function ensureLoadMoreHandler(): void {
   document.addEventListener(
     "click",
     (e) => {
+      if (isFavoritesMode()) return;
       if (!softState?.hasMore) return;
       const target = e.target as Element | null;
       const btn = target?.closest?.("button");
@@ -207,11 +225,16 @@ function ensureLoadMoreHandler(): void {
 function syncLoadMoreButton(hasMore: boolean): void {
   const btn = findLoadMoreButton();
   if (!btn) return;
-  btn.hidden = !hasMore;
-  btn.style.display = hasMore ? "" : "none";
-  if (hasMore) {
+  const show = hasMore && !isFavoritesMode();
+  btn.hidden = !show;
+  btn.style.display = show ? "" : "none";
+  if (show) {
     btn.disabled = false;
   }
+}
+
+export function syncLoadMoreVisibility(hasMore: boolean): void {
+  syncLoadMoreButton(hasMore);
 }
 
 function showEmpty(grid: HTMLElement, q: string | null): void {
@@ -221,6 +244,7 @@ function showEmpty(grid: HTMLElement, q: string | null): void {
 }
 
 async function loadMoreSoft(): Promise<void> {
+  if (isFavoritesMode()) return;
   if (!softState?.hasMore) return;
   const grid = findResultsGrid();
   if (!grid) return;
@@ -287,6 +311,14 @@ export async function softSearch(
   const grid = findResultsGrid();
   if (!grid) return false;
 
+  // Favorites mode: keep URL in sync and refresh the saved grid — no API.
+  if (isFavoritesMode()) {
+    replaceSearchUrl(updates);
+    refreshFavoritesIfActive();
+    syncLoadMoreButton(false);
+    return true;
+  }
+
   const params = mergeParams(updates);
   replaceSearchUrl(updates);
 
@@ -310,6 +342,12 @@ export async function softSearch(
       abortController.signal,
     );
     if (myId !== requestSeq) return true;
+    // Favorites mode may have been entered while the request was in flight.
+    if (isFavoritesMode()) {
+      refreshFavoritesIfActive();
+      syncLoadMoreButton(false);
+      return true;
+    }
 
     if (items.length === 0) {
       showEmpty(grid, params.q);
@@ -323,6 +361,11 @@ export async function softSearch(
     return true;
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return true;
+    if (isFavoritesMode()) {
+      refreshFavoritesIfActive();
+      syncLoadMoreButton(false);
+      return true;
+    }
     if (e instanceof SoftSearchHalt) {
       if (myId === requestSeq) showEmpty(grid, params.q);
       return true;

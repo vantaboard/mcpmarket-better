@@ -43,6 +43,11 @@ export async function isFavorite(id: string): Promise<boolean> {
   return list.some((f) => f.id === id);
 }
 
+/** Sync check against in-memory cache (false until loadFavorites has run). */
+export function isFavoriteSync(id: string): boolean {
+  return cache?.some((f) => f.id === id) ?? false;
+}
+
 export async function toggleFavorite(
   item: Omit<Favorite, "id" | "savedAt"> & { id?: string; savedAt?: number },
 ): Promise<{ list: Favorite[]; added: boolean }> {
