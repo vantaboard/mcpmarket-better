@@ -7,24 +7,59 @@ function isSearchPage(): boolean {
   return location.pathname.includes("/search");
 }
 
-function openInBackground(url: string): void {
+type OpenInTabFn = (
+  url: string,
+  opts?: boolean | { active?: boolean; insert?: boolean; setParent?: boolean },
+) => unknown;
+
+function getOpenInTab(): OpenInTabFn | null {
+  const gm = typeof GM !== "undefined" ? GM : null;
+  if (gm && typeof gm.openInTab === "function") {
+    return gm.openInTab.bind(gm) as OpenInTabFn;
+  }
+  // Legacy grant name some managers expose.
+  const legacy = (globalThis as { GM_openInTab?: OpenInTabFn }).GM_openInTab;
+  return typeof legacy === "function" ? legacy : null;
+}
+
+/** Open URL in a new tab without focusing away from search when possible. */
+function openInBackground(url: string): boolean {
   const absolute = new URL(url, location.href).href;
-  try {
-    // Second arg true = open in background (keep focus on search).
-    // Tampermonkey also accepts { active: false }; boolean form is portable.
-    const open = GM.openInTab as (
-      u: string,
-      opts?:
-        boolean | { active?: boolean; insert?: boolean; setParent?: boolean },
-    ) => void;
-    open(absolute, { active: false, insert: true, setParent: true });
-  } catch (e) {
-    console.error("[mcpmarket-better] openInTab failed", e);
+  const openInTab = getOpenInTab();
+
+  if (openInTab) {
     try {
-      GM.openInTab(absolute, true);
-    } catch (e2) {
-      console.error("[mcpmarket-better] openInTab fallback failed", e2);
+      openInTab(absolute, { active: false, insert: true, setParent: true });
+      return true;
+    } catch {
+      try {
+        // Boolean form: true = background (Greasemonkey / TM loadInBackground).
+        openInTab(absolute, true);
+        return true;
+      } catch (e) {
+        console.error("[mcpmarket-better] openInTab failed", e);
+      }
     }
+  } else {
+    console.warn(
+      "[mcpmarket-better] GM.openInTab unavailable — reinstall the userscript to pick up @grant GM.openInTab",
+    );
+  }
+
+  // Fallback: still open a tab (may steal focus) so left-click is never a no-op.
+  try {
+    const a = document.createElement("a");
+    a.href = absolute;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  } catch (e) {
+    console.error("[mcpmarket-better] fallback open failed", e);
+    return false;
   }
 }
 
@@ -45,7 +80,11 @@ function onCardClick(e: MouseEvent): void {
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
-  openInBackground(card.href);
+
+  if (!openInBackground(card.href)) {
+    // Absolute last resort — same-tab navigation.
+    location.assign(card.href);
+  }
 }
 
 export function startCardNavigation(): void {
