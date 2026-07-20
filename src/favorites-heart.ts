@@ -26,6 +26,10 @@ export function createHeartButton(
 export function setHeartActive(btn: HTMLElement, active: boolean): void {
   btn.classList.toggle("mmb-fav-heart--active", active);
   btn.setAttribute("aria-pressed", active ? "true" : "false");
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    svg.setAttribute("fill", active ? "currentColor" : "none");
+  }
 }
 
 function escapeAttr(s: string): string {

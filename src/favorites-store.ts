@@ -35,7 +35,18 @@ export async function loadFavorites(): Promise<Favorite[]> {
 
 export async function saveFavorites(list: Favorite[]): Promise<void> {
   cache = list;
-  await GM.setValue(STORAGE_KEY, JSON.stringify(list));
+  try {
+    const ret = GM.setValue(STORAGE_KEY, JSON.stringify(list));
+    // Some GM hosts return a thenable that never settles; don't hang callers.
+    await Promise.race([
+      Promise.resolve(ret),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 250);
+      }),
+    ]);
+  } catch (e) {
+    console.error("[mcpmarket-better] save favorites failed", e);
+  }
 }
 
 export async function isFavorite(id: string): Promise<boolean> {

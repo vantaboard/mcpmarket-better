@@ -234,18 +234,45 @@ export function ensureFavoritesModeButton(row: HTMLElement): void {
   syncFavModeButton();
 }
 
+function syncHeartsById(id: string, active: boolean): void {
+  document.querySelectorAll<HTMLElement>(HEART_SEL).forEach((el) => {
+    if (el.getAttribute("data-mmb-fav-id") === id) {
+      setHeartActive(el, active);
+    }
+  });
+}
+
 async function onHeartClick(btn: HTMLElement): Promise<void> {
+  const id = btn.getAttribute("data-mmb-fav-id");
   const card = btn.closest<HTMLAnchorElement>(CARD_SEL);
-  if (!card) return;
+  if (!card || !id) return;
+
   const fav = favoriteFromCard(card);
   if (!fav) return;
 
-  const { added } = await toggleFavorite(fav);
-  setHeartActive(btn, added);
-  syncAllHeartButtons();
+  // Button id is canonical (soft-rendered markup + injected hearts).
+  const [type, ...slugParts] = id.split(":");
+  if (type === "server" || type === "skills") {
+    fav.id = id;
+    fav.type = type;
+    fav.slug = slugParts.join(":") || fav.slug;
+  }
 
-  if (isFavoritesMode()) {
-    await renderFavoritesGrid();
+  // Optimistic paint — do not wait on GM.setValue (can hang in some hosts).
+  const nextActive = !isFavoriteSync(id);
+  syncHeartsById(id, nextActive);
+
+  try {
+    const { added } = await toggleFavorite(fav);
+    syncHeartsById(id, added);
+    syncAllHeartButtons();
+
+    if (isFavoritesMode()) {
+      await renderFavoritesGrid();
+    }
+  } catch (e) {
+    console.error("[mcpmarket-better] toggle favorite failed", e);
+    syncHeartsById(id, isFavoriteSync(id));
   }
 }
 
@@ -253,7 +280,20 @@ function bindDocumentListeners(): void {
   if (listenersBound) return;
   listenersBound = true;
 
-  const stop = (e: Event) => {
+  // Toggle on pointerdown so we don't depend on click (preventDefault on
+  // mousedown inside an <a> can suppress the click event in Chromium).
+  const onHeartPointerDown = (e: Event) => {
+    if (e instanceof PointerEvent && e.button !== 0) return;
+    const target = e.target as Element | null;
+    const btn = target?.closest?.(HEART_SEL) as HTMLElement | null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    void onHeartClick(btn);
+  };
+
+  const suppressNav = (e: Event) => {
     const target = e.target as Element | null;
     if (!target?.closest?.(HEART_SEL)) return;
     e.preventDefault();
@@ -261,20 +301,9 @@ function bindDocumentListeners(): void {
     e.stopImmediatePropagation();
   };
 
-  document.addEventListener("mousedown", stop, true);
-  document.addEventListener(
-    "click",
-    (e) => {
-      const target = e.target as Element | null;
-      const btn = target?.closest?.(HEART_SEL) as HTMLElement | null;
-      if (!btn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      void onHeartClick(btn);
-    },
-    true,
-  );
+  document.addEventListener("pointerdown", onHeartPointerDown, true);
+  document.addEventListener("mousedown", suppressNav, true);
+  document.addEventListener("click", suppressNav, true);
 }
 
 function observeCards(): void {
