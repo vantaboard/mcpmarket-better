@@ -1,5 +1,9 @@
 import { renderHeartButton } from "./favorites-heart";
-import { isFavoritesMode, refreshFavoritesIfActive } from "./favorites-mode";
+import {
+  isFavoritesMode,
+  refreshFavoritesIfActive,
+  resetFavoritesScrollY,
+} from "./favorites-mode";
 import { favoriteId, isFavoriteSync } from "./favorites-store";
 import {
   navigateSearch,
@@ -443,6 +447,16 @@ function mergeParams(updates: SearchParamUpdates): SearchParams {
   };
 }
 
+function searchQueryChanged(a: SearchParams, b: SearchParams): boolean {
+  return (
+    a.q !== b.q || a.category_slug !== b.category_slug || a.type !== b.type
+  );
+}
+
+function scrollResultsToTop(): void {
+  window.scrollTo(0, 0);
+}
+
 /**
  * Update results in-place and sync the URL via replaceState — no full
  * navigation, so the sticky search chrome does not remount/skeleton.
@@ -456,15 +470,22 @@ export async function softSearch(
   const grid = findResultsGrid();
   if (!grid) return false;
 
+  const prev = readSearchParams();
+  const params = mergeParams(updates);
+  const queryChanged = searchQueryChanged(prev, params);
+
   // Favorites mode: keep URL in sync and refresh the saved grid — no API.
   if (isFavoritesMode()) {
     replaceSearchUrl(updates);
     refreshFavoritesIfActive();
     syncLoadMoreButton(false);
+    if (queryChanged) {
+      resetFavoritesScrollY();
+      scrollResultsToTop();
+    }
     return true;
   }
 
-  const params = mergeParams(updates);
   replaceSearchUrl(updates);
 
   ensureLoadMoreHandler();
@@ -498,6 +519,7 @@ export async function softSearch(
 
     if (items.length === 0) {
       showEmpty(grid, params.q);
+      if (queryChanged) scrollResultsToTop();
       return true;
     }
 
@@ -505,6 +527,7 @@ export async function softSearch(
     softState.hasMore = hasMore;
     softState.page = 1;
     syncLoadMoreButton(hasMore);
+    if (queryChanged) scrollResultsToTop();
     return true;
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return true;
@@ -514,11 +537,17 @@ export async function softSearch(
       return true;
     }
     if (e instanceof SoftSearchHalt) {
-      if (myId === requestSeq) showEmpty(grid, params.q);
+      if (myId === requestSeq) {
+        showEmpty(grid, params.q);
+        if (queryChanged) scrollResultsToTop();
+      }
       return true;
     }
     console.error("[mcpmarket-better] soft search failed", e);
-    if (myId === requestSeq) showEmpty(grid, params.q);
+    if (myId === requestSeq) {
+      showEmpty(grid, params.q);
+      if (queryChanged) scrollResultsToTop();
+    }
     return true;
   }
 }

@@ -1,8 +1,10 @@
 import { createHeartButton, setHeartActive } from "./favorites-heart";
 import {
+  getFavoritesScrollY,
   isFavoritesMode,
   registerFavoritesGridRefresh,
   setFavoritesMode,
+  setFavoritesScrollY,
 } from "./favorites-mode";
 import {
   favoriteId,
@@ -30,7 +32,6 @@ let listenersBound = false;
 let cardObserver: MutationObserver | null = null;
 let resultsSnapshot: ResultsViewSnapshot | null = null;
 let savedSearchScrollY = 0;
-let savedFavoritesScrollY = 0;
 
 function syncSearchInputFromUrl(): void {
   const input = document.querySelector<HTMLInputElement>(
@@ -264,13 +265,13 @@ async function enterFavoritesMode(): Promise<void> {
   syncFavModeButton();
   await renderFavoritesGrid();
 
-  // Restore prior favorites scroll (0 on first visit).
-  scrollToY(savedFavoritesScrollY);
+  // Restore prior favorites scroll (0 on first visit / after filter change).
+  scrollToY(getFavoritesScrollY());
 }
 
 async function exitFavoritesMode(): Promise<void> {
   // Remember favorites place for the next visit.
-  savedFavoritesScrollY = window.scrollY;
+  setFavoritesScrollY(window.scrollY);
 
   setFavoritesMode(false);
   syncFavModeButton();
