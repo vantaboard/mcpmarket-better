@@ -1049,12 +1049,23 @@ button[data-mmb-load-more="1"] {
 
   let favoritesMode = false;
   let refreshFavoritesGrid = null;
+  let favoritesScrollY = 0;
   function isFavoritesMode() {
     return favoritesMode;
   }
   function setFavoritesMode(on) {
     favoritesMode = on;
     document.documentElement.classList.toggle("mmb-fav-mode", on);
+  }
+  function getFavoritesScrollY() {
+    return favoritesScrollY;
+  }
+  function setFavoritesScrollY(y) {
+    favoritesScrollY = y;
+  }
+  /** Clear when the favorites filter (q/type/category) changes. */
+  function resetFavoritesScrollY() {
+    favoritesScrollY = 0;
   }
   function registerFavoritesGridRefresh(fn) {
     refreshFavoritesGrid = fn;
@@ -1532,6 +1543,14 @@ button[data-mmb-load-more="1"] {
       type: updates.type !== undefined ? updates.type : current.type,
     };
   }
+  function searchQueryChanged(a, b) {
+    return (
+      a.q !== b.q || a.category_slug !== b.category_slug || a.type !== b.type
+    );
+  }
+  function scrollResultsToTop() {
+    window.scrollTo(0, 0);
+  }
   /**
    * Update results in-place and sync the URL via replaceState — no full
    * navigation, so the sticky search chrome does not remount/skeleton.
@@ -1542,14 +1561,20 @@ button[data-mmb-load-more="1"] {
   async function softSearch(updates) {
     const grid = findResultsGrid();
     if (!grid) return false;
+    const prev = readSearchParams();
+    const params = mergeParams(updates);
+    const queryChanged = searchQueryChanged(prev, params);
     // Favorites mode: keep URL in sync and refresh the saved grid — no API.
     if (isFavoritesMode()) {
       replaceSearchUrl(updates);
       refreshFavoritesIfActive();
       syncLoadMoreButton(false);
+      if (queryChanged) {
+        resetFavoritesScrollY();
+        scrollResultsToTop();
+      }
       return true;
     }
-    const params = mergeParams(updates);
     replaceSearchUrl(updates);
     ensureLoadMoreHandler();
     ensureInfiniteScroll();
@@ -1578,12 +1603,14 @@ button[data-mmb-load-more="1"] {
       }
       if (items.length === 0) {
         showEmpty(grid, params.q);
+        if (queryChanged) scrollResultsToTop();
         return true;
       }
       grid.innerHTML = items.map((item) => renderCard(item, isSkills)).join("");
       softState.hasMore = hasMore;
       softState.page = 1;
       syncLoadMoreButton(hasMore);
+      if (queryChanged) scrollResultsToTop();
       return true;
     } catch (e) {
       if (e?.name === "AbortError") return true;
@@ -1593,11 +1620,17 @@ button[data-mmb-load-more="1"] {
         return true;
       }
       if (e instanceof SoftSearchHalt) {
-        if (myId === requestSeq) showEmpty(grid, params.q);
+        if (myId === requestSeq) {
+          showEmpty(grid, params.q);
+          if (queryChanged) scrollResultsToTop();
+        }
         return true;
       }
       console.error("[mcpmarket-better] soft search failed", e);
-      if (myId === requestSeq) showEmpty(grid, params.q);
+      if (myId === requestSeq) {
+        showEmpty(grid, params.q);
+        if (queryChanged) scrollResultsToTop();
+      }
       return true;
     }
   }
@@ -1664,7 +1697,6 @@ button[data-mmb-load-more="1"] {
   let cardObserver = null;
   let resultsSnapshot = null;
   let savedSearchScrollY = 0;
-  let savedFavoritesScrollY = 0;
   function syncSearchInputFromUrl() {
     const input = document.querySelector(
       'header.sticky.top-14 input[name="search"]',
@@ -1868,12 +1900,12 @@ button[data-mmb-load-more="1"] {
     setFavoritesMode(true);
     syncFavModeButton();
     await renderFavoritesGrid();
-    // Restore prior favorites scroll (0 on first visit).
-    scrollToY(savedFavoritesScrollY);
+    // Restore prior favorites scroll (0 on first visit / after filter change).
+    scrollToY(getFavoritesScrollY());
   }
   async function exitFavoritesMode() {
     // Remember favorites place for the next visit.
-    savedFavoritesScrollY = window.scrollY;
+    setFavoritesScrollY(window.scrollY);
     setFavoritesMode(false);
     syncFavModeButton();
     const snap = resultsSnapshot;
