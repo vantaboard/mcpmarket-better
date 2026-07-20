@@ -162,30 +162,45 @@ body:has(header.sticky.top-14) .py-8.md\:py-12 {
   }
 }
 
-.mmb-fav-heart {
-  position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  z-index: 2;
+.mmb-card-actions {
   display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: 0.25rem;
+
+  > svg {
+    margin-top: 0 !important;
+    display: block;
+  }
+}
+
+.mmb-fav-heart {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
   padding: 0;
   border: none;
-  border-radius: 0.375rem;
-  background: hsl(var(--card) / 0.9);
-  color: hsl(var(--muted-foreground));
+  border-radius: 0.25rem;
+  background: transparent;
+  color: hsl(var(--muted-foreground) / 0.55);
   cursor: pointer;
   transition:
     color 0.15s ease,
-    background 0.15s ease,
-    transform 0.12s ease;
+    background 0.15s ease;
+
+  svg {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+  }
 
   &:hover {
     color: hsl(0 72% 45%);
-    background: hsl(var(--muted) / 0.7);
+    background: hsl(var(--muted) / 0.5);
   }
 
   &.mmb-fav-heart--active {
@@ -195,12 +210,6 @@ body:has(header.sticky.top-14) .py-8.md\:py-12 {
       fill: currentColor;
     }
   }
-}
-
-/* Soft-rendered cards place the external-link icon top-right; nudge heart left. */
-a[id^="tool-card-"] .mmb-fav-heart {
-  top: 0.875rem;
-  right: 2.25rem;
 }
 
 .mmb-filter {

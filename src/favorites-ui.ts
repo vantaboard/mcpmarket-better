@@ -76,20 +76,59 @@ function favoriteFromCard(card: HTMLAnchorElement): Favorite | null {
   };
 }
 
-function cardShell(card: HTMLAnchorElement): HTMLElement | null {
-  return (
-    card.querySelector<HTMLElement>(".relative") ||
-    card.querySelector<HTMLElement>("div") ||
-    card
-  );
+/** Place heart in the title row, immediately before the open/external icon. */
+function placeHeartInHeader(
+  card: HTMLAnchorElement,
+  heart: HTMLElement,
+): boolean {
+  if (heart.closest(".mmb-card-actions")) return true;
+
+  const title = card.querySelector("h3");
+  const row = title?.closest<HTMLElement>("div.flex");
+  if (!row) return false;
+
+  let actions = row.querySelector<HTMLElement>(":scope > .mmb-card-actions");
+  if (!actions) {
+    const openIcon =
+      row.querySelector<SVGElement>(":scope > svg") ||
+      [...row.children]
+        .reverse()
+        .find(
+          (el): el is HTMLElement =>
+            el instanceof HTMLElement &&
+            el !== heart &&
+            !!el.querySelector?.("svg") &&
+            !el.contains(title),
+        ) ||
+      null;
+
+    actions = document.createElement("div");
+    actions.className = "mmb-card-actions";
+    if (openIcon) {
+      openIcon.replaceWith(actions);
+      actions.appendChild(openIcon);
+    } else {
+      row.appendChild(actions);
+    }
+  }
+
+  const openIcon =
+    actions.querySelector(":scope > svg") ||
+    actions.querySelector(":scope > :not(.mmb-fav-heart)");
+  if (openIcon) {
+    openIcon.before(heart);
+  } else {
+    actions.appendChild(heart);
+  }
+  return true;
 }
 
 async function enhanceCard(card: HTMLAnchorElement): Promise<void> {
-  if (card.querySelector(HEART_SEL)) {
-    const existing = card.querySelector<HTMLElement>(HEART_SEL);
-    if (!existing) return;
+  const existing = card.querySelector<HTMLElement>(HEART_SEL);
+  if (existing) {
     const id = existing.getAttribute("data-mmb-fav-id");
     if (id) setHeartActive(existing, isFavoriteSync(id));
+    placeHeartInHeader(card, existing);
     return;
   }
 
@@ -97,13 +136,14 @@ async function enhanceCard(card: HTMLAnchorElement): Promise<void> {
   if (!fav) return;
 
   await loadFavorites();
-  const shell = cardShell(card);
-  if (!shell) return;
-  if (getComputedStyle(shell).position === "static") {
-    shell.style.position = "relative";
-  }
   const btn = createHeartButton(fav.id, isFavoriteSync(fav.id));
-  shell.appendChild(btn);
+  if (!placeHeartInHeader(card, btn)) {
+    const fallback =
+      card.querySelector<HTMLElement>(".relative") ||
+      card.querySelector<HTMLElement>("div") ||
+      card;
+    fallback.appendChild(btn);
+  }
 }
 
 export async function enhanceCardHearts(
