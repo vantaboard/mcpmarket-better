@@ -2,10 +2,10 @@
 // @name             MCP Market Better
 // @name:en          MCP Market Better
 // @namespace        https://github.com/vantaboard/mcpmarket-better
-// @version          0.2.1
+// @version          0.2.2
 // @author           Brighten Tompkins <brightenqtompkins@gmail.com>
-// @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
-// @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
+// @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.
+// @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.
 // @match            *://mcpmarket.com/search*
 // @match            *://mcpmarket.com/*
 // @license          MIT
@@ -2050,6 +2050,50 @@ button[data-mmb-load-more="1"] {
     window.setTimeout(() => {
       void enhanceCardHearts();
     }, 1000);
+  } // ./src/home-search.ts
+
+  /**
+   * Homepage hero search: clicking/focusing the box goes to /search
+   * (we can't change mcpmarket.com itself — this is a userscript enhance).
+   */
+  let home_search_listenersBound = false;
+  function isHomePage() {
+    const path = location.pathname.replace(/\/+$/, "") || "/";
+    return path === "/";
+  }
+  function isHomeSearchInput(el) {
+    if (!(el instanceof HTMLInputElement)) return false;
+    if (el.name !== "search") return false;
+    // Search-page chrome lives in the sticky search header — leave that alone.
+    if (el.closest("header.sticky.top-14")) return false;
+    return true;
+  }
+  function goToSearch(input) {
+    const q = input?.value?.trim();
+    const url = q ? `/search?q=${encodeURIComponent(q)}` : "/search";
+    if (location.pathname.includes("/search")) return;
+    location.assign(url);
+  }
+  function onActivate(e) {
+    if (!isHomePage()) return;
+    const target = e.target;
+    const input =
+      (target instanceof HTMLInputElement && isHomeSearchInput(target)
+        ? target
+        : target?.closest?.("input[name='search']")) ?? null;
+    if (!isHomeSearchInput(input)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    goToSearch(input);
+  }
+  function startHomeSearchRedirect() {
+    if (home_search_listenersBound) return;
+    home_search_listenersBound = true;
+    // Capture early so the host doesn't keep focus on the home input.
+    document.addEventListener("pointerdown", onActivate, true);
+    document.addEventListener("focusin", onActivate, true);
+    document.addEventListener("click", onActivate, true);
   } // ./src/search-navigation.ts
 
   const HEADER_SEL = "header.sticky.top-14";
@@ -2616,6 +2660,7 @@ button[data-mmb-load-more="1"] {
 
   async function src_main() {
     console.log("[mcpmarket-better] loaded on", location.href);
+    startHomeSearchRedirect();
     startSearchChromeObserver();
     startSearchNavigation();
     startFavorites();
