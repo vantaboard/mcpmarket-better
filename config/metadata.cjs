@@ -16,8 +16,9 @@ module.exports = {
     $: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.",
     en: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.",
   },
-  // Search is the only surface this script enhances.
-  match: ["*://mcpmarket.com/search*"],
+  // Load site-wide so SPA navigations from / → /search still enhance.
+  // Features no-op off /search via isSearchPage() checks.
+  match: ["*://mcpmarket.com/search*", "*://mcpmarket.com/*"],
   // SPDX identifier — required for a clear Greasy Fork listing.
   license: "MIT",
   grant: [

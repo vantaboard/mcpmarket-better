@@ -209,31 +209,7 @@ function syncFilterControl(header: HTMLElement): void {
   syncSearchPlaceholder(header);
 }
 
-/**
- * Wrap search + Filter in a flex row (full grid width) so the input
- * fills up to the Filter with only a small gap — no empty column.
- */
-function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
-  const existingRow = stack.querySelector<HTMLElement>(
-    ":scope > .mmb-search-row",
-  );
-  if (existingRow) {
-    ensureFavoritesModeButton(existingRow);
-    syncFilterControl(header);
-    return;
-  }
-
-  const searchWrap = stack.querySelector<HTMLElement>(
-    ':scope > .flex-1:has(input[name="search"])',
-  );
-  if (!searchWrap) return;
-
-  const row = document.createElement("div");
-  row.className = "mmb-search-row";
-  row.setAttribute("data-mmb", "search-row");
-  searchWrap.before(row);
-  row.appendChild(searchWrap);
-
+function createFilterRoot(header: HTMLElement): HTMLElement {
   const filterRoot = document.createElement("div");
   filterRoot.className = "mmb-filter";
   filterRoot.setAttribute("data-mmb", "filter");
@@ -271,22 +247,59 @@ function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
 
   filterRoot.appendChild(btn);
   filterRoot.appendChild(panel);
-  ensureFavoritesModeButton(row);
-  row.appendChild(filterRoot);
 
   const selected = getSelectedCategory(header);
   updateFilterButtonLabel(btn, selected);
   void loadCategories(header).then((cats) => {
     renderFilterPanel(panel, cats, selected);
   });
+
+  return filterRoot;
 }
 
-function headerNeedsFilter(header: HTMLElement): boolean {
+/**
+ * Wrap search + Filter in a flex row (full grid width) so the input
+ * fills up to the Filter with only a small gap — no empty column.
+ */
+function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
+  const existingRow = stack.querySelector<HTMLElement>(
+    ":scope > .mmb-search-row",
+  );
+  if (existingRow) {
+    if (!existingRow.querySelector(".mmb-filter")) {
+      existingRow.appendChild(createFilterRoot(header));
+    }
+    ensureFavoritesModeButton(existingRow);
+    syncFilterControl(header);
+    return;
+  }
+
+  const searchWrap = stack.querySelector<HTMLElement>(
+    ':scope > .flex-1:has(input[name="search"])',
+  );
+  if (!searchWrap) return;
+
+  const row = document.createElement("div");
+  row.className = "mmb-search-row";
+  row.setAttribute("data-mmb", "search-row");
+  searchWrap.before(row);
+  row.appendChild(searchWrap);
+
+  ensureFavoritesModeButton(row);
+  row.appendChild(createFilterRoot(header));
+}
+
+function headerNeedsEnhance(header: HTMLElement): boolean {
   const stack = getStack(header);
   if (!stack) return false;
   const hasSearch = !!stack.querySelector('input[name="search"]');
-  const hasRow = !!stack.querySelector(":scope > .mmb-search-row");
-  return hasSearch && !hasRow;
+  if (!hasSearch) return false;
+  const row = stack.querySelector(":scope > .mmb-search-row");
+  if (!row) return true;
+  // Row can survive a partial remount without our controls.
+  if (!row.querySelector(".mmb-filter")) return true;
+  if (!row.querySelector(".mmb-fav-mode-btn")) return true;
+  return false;
 }
 
 /** Icon-only tabs: expose label via native tooltip + aria-label. */
@@ -348,6 +361,43 @@ function observeHeader(): void {
   });
 }
 
+/** Keep trying to mount chrome after SPA navigations (home → search). */
+function ensureSearchChromeFresh(): void {
+  if (!isSearchPage()) return;
+
+  const header = getHeader();
+  if (!header) {
+    scheduleEnhance();
+    return;
+  }
+
+  if (headerNeedsEnhance(header)) {
+    scheduleEnhance();
+  } else {
+    syncFilterControl(header);
+  }
+}
+
+function hookHistoryNavigation(onNavigate: () => void): void {
+  const notify = () => {
+    // After Next.js updates the URL + starts rendering the new tree.
+    queueMicrotask(onNavigate);
+    window.setTimeout(onNavigate, 0);
+    window.setTimeout(onNavigate, 100);
+    window.setTimeout(onNavigate, 400);
+  };
+
+  const wrap = <T extends typeof history.pushState>(original: T): T =>
+    function (this: History, ...args: Parameters<T>) {
+      const ret = original.apply(this, args);
+      notify();
+      return ret;
+    } as T;
+
+  history.pushState = wrap(history.pushState.bind(history));
+  history.replaceState = wrap(history.replaceState.bind(history));
+}
+
 export function startSearchChromeObserver(): void {
   if (!documentListenersBound) {
     documentListenersBound = true;
@@ -371,22 +421,31 @@ export function startSearchChromeObserver(): void {
 
     let lastHref = location.href;
     const syncFromUrl = () => {
-      if (location.href === lastHref) return;
-      lastHref = location.href;
-      const header = getHeader();
-      if (!header) return;
-      if (headerNeedsFilter(header)) {
-        scheduleEnhance();
-      } else {
-        syncFilterControl(header);
+      const hrefChanged = location.href !== lastHref;
+      if (hrefChanged) lastHref = location.href;
+
+      if (!isSearchPage()) return;
+
+      // Always re-check: SPA can change the URL before the search header exists,
+      // and a one-shot check would skip forever once lastHref is updated.
+      ensureSearchChromeFresh();
+      if (hrefChanged) {
+        const header = getHeader();
+        if (header && !headerNeedsEnhance(header)) {
+          syncFilterControl(header);
+        }
       }
     };
+
     window.addEventListener("popstate", syncFromUrl);
+    hookHistoryNavigation(syncFromUrl);
     setInterval(syncFromUrl, 500);
   }
 
   if (!observer) {
     observer = new MutationObserver((mutations) => {
+      if (!isSearchPage()) return;
+
       const header = getHeader();
       if (!header) {
         scheduleEnhance();
@@ -396,11 +455,13 @@ export function startSearchChromeObserver(): void {
       const onlyOurs = mutations.every((m) => {
         const el =
           m.target instanceof Element ? m.target : m.target.parentElement;
-        return !!el?.closest?.(".mmb-filter, .mmb-search-row");
+        return !!el?.closest?.(
+          ".mmb-filter, .mmb-search-row, .mmb-fav-mode-btn",
+        );
       });
       if (onlyOurs) return;
 
-      if (headerNeedsFilter(header)) {
+      if (headerNeedsEnhance(header)) {
         scheduleEnhance();
       }
     });

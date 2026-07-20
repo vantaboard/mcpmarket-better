@@ -31,7 +31,7 @@ After changing userscript metadata in [`config/metadata.cjs`](./config/metadata.
 The script runs on:
 
 - `*://mcpmarket.com/search*`
-- `*://mcpmarket.com/*`
+- `*://mcpmarket.com/*` (so SPA navigations from the homepage still enhance search)
 
 ## Build
 

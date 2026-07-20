@@ -2,11 +2,12 @@
 // @name             MCP Market Better
 // @name:en          MCP Market Better
 // @namespace        https://github.com/vantaboard/mcpmarket-better
-// @version          0.2.0
+// @version          0.2.1
 // @author           Brighten Tompkins <brightenqtompkins@gmail.com>
 // @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
 // @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
 // @match            *://mcpmarket.com/search*
+// @match            *://mcpmarket.com/*
 // @license          MIT
 // @grant            GM.xmlHttpRequest
 // @grant            GM.setValue
@@ -2388,26 +2389,7 @@ button[data-mmb-load-more="1"] {
     }
     syncSearchPlaceholder(header);
   }
-  /**
-   * Wrap search + Filter in a flex row (full grid width) so the input
-   * fills up to the Filter with only a small gap — no empty column.
-   */
-  function ensureFilterControl(stack, header) {
-    const existingRow = stack.querySelector(":scope > .mmb-search-row");
-    if (existingRow) {
-      ensureFavoritesModeButton(existingRow);
-      syncFilterControl(header);
-      return;
-    }
-    const searchWrap = stack.querySelector(
-      ':scope > .flex-1:has(input[name="search"])',
-    );
-    if (!searchWrap) return;
-    const row = document.createElement("div");
-    row.className = "mmb-search-row";
-    row.setAttribute("data-mmb", "search-row");
-    searchWrap.before(row);
-    row.appendChild(searchWrap);
+  function createFilterRoot(header) {
     const filterRoot = document.createElement("div");
     filterRoot.className = "mmb-filter";
     filterRoot.setAttribute("data-mmb", "filter");
@@ -2441,20 +2423,50 @@ button[data-mmb-load-more="1"] {
     });
     filterRoot.appendChild(btn);
     filterRoot.appendChild(panel);
-    ensureFavoritesModeButton(row);
-    row.appendChild(filterRoot);
     const selected = getSelectedCategory(header);
     updateFilterButtonLabel(btn, selected);
     void loadCategories(header).then((cats) => {
       renderFilterPanel(panel, cats, selected);
     });
+    return filterRoot;
   }
-  function headerNeedsFilter(header) {
+  /**
+   * Wrap search + Filter in a flex row (full grid width) so the input
+   * fills up to the Filter with only a small gap — no empty column.
+   */
+  function ensureFilterControl(stack, header) {
+    const existingRow = stack.querySelector(":scope > .mmb-search-row");
+    if (existingRow) {
+      if (!existingRow.querySelector(".mmb-filter")) {
+        existingRow.appendChild(createFilterRoot(header));
+      }
+      ensureFavoritesModeButton(existingRow);
+      syncFilterControl(header);
+      return;
+    }
+    const searchWrap = stack.querySelector(
+      ':scope > .flex-1:has(input[name="search"])',
+    );
+    if (!searchWrap) return;
+    const row = document.createElement("div");
+    row.className = "mmb-search-row";
+    row.setAttribute("data-mmb", "search-row");
+    searchWrap.before(row);
+    row.appendChild(searchWrap);
+    ensureFavoritesModeButton(row);
+    row.appendChild(createFilterRoot(header));
+  }
+  function headerNeedsEnhance(header) {
     const stack = getStack(header);
     if (!stack) return false;
     const hasSearch = !!stack.querySelector('input[name="search"]');
-    const hasRow = !!stack.querySelector(":scope > .mmb-search-row");
-    return hasSearch && !hasRow;
+    if (!hasSearch) return false;
+    const row = stack.querySelector(":scope > .mmb-search-row");
+    if (!row) return true;
+    // Row can survive a partial remount without our controls.
+    if (!row.querySelector(".mmb-filter")) return true;
+    if (!row.querySelector(".mmb-fav-mode-btn")) return true;
+    return false;
   }
   /** Icon-only tabs: expose label via native tooltip + aria-label. */
   function ensureTypeTabTooltips(header) {
@@ -2506,6 +2518,37 @@ button[data-mmb-load-more="1"] {
       subtree: true,
     });
   }
+  /** Keep trying to mount chrome after SPA navigations (home → search). */
+  function ensureSearchChromeFresh() {
+    if (!search_chrome_isSearchPage()) return;
+    const header = getHeader();
+    if (!header) {
+      scheduleEnhance();
+      return;
+    }
+    if (headerNeedsEnhance(header)) {
+      scheduleEnhance();
+    } else {
+      syncFilterControl(header);
+    }
+  }
+  function hookHistoryNavigation(onNavigate) {
+    const notify = () => {
+      // After Next.js updates the URL + starts rendering the new tree.
+      queueMicrotask(onNavigate);
+      window.setTimeout(onNavigate, 0);
+      window.setTimeout(onNavigate, 100);
+      window.setTimeout(onNavigate, 400);
+    };
+    const wrap = (original) =>
+      function (...args) {
+        const ret = original.apply(this, args);
+        notify();
+        return ret;
+      };
+    history.pushState = wrap(history.pushState.bind(history));
+    history.replaceState = wrap(history.replaceState.bind(history));
+  }
   function startSearchChromeObserver() {
     if (!search_chrome_documentListenersBound) {
       search_chrome_documentListenersBound = true;
@@ -2526,21 +2569,26 @@ button[data-mmb-load-more="1"] {
       });
       let lastHref = location.href;
       const syncFromUrl = () => {
-        if (location.href === lastHref) return;
-        lastHref = location.href;
-        const header = getHeader();
-        if (!header) return;
-        if (headerNeedsFilter(header)) {
-          scheduleEnhance();
-        } else {
-          syncFilterControl(header);
+        const hrefChanged = location.href !== lastHref;
+        if (hrefChanged) lastHref = location.href;
+        if (!search_chrome_isSearchPage()) return;
+        // Always re-check: SPA can change the URL before the search header exists,
+        // and a one-shot check would skip forever once lastHref is updated.
+        ensureSearchChromeFresh();
+        if (hrefChanged) {
+          const header = getHeader();
+          if (header && !headerNeedsEnhance(header)) {
+            syncFilterControl(header);
+          }
         }
       };
       window.addEventListener("popstate", syncFromUrl);
+      hookHistoryNavigation(syncFromUrl);
       setInterval(syncFromUrl, 500);
     }
     if (!observer) {
       observer = new MutationObserver((mutations) => {
+        if (!search_chrome_isSearchPage()) return;
         const header = getHeader();
         if (!header) {
           scheduleEnhance();
@@ -2549,10 +2597,12 @@ button[data-mmb-load-more="1"] {
         const onlyOurs = mutations.every((m) => {
           const el =
             m.target instanceof Element ? m.target : m.target.parentElement;
-          return !!el?.closest?.(".mmb-filter, .mmb-search-row");
+          return !!el?.closest?.(
+            ".mmb-filter, .mmb-search-row, .mmb-fav-mode-btn",
+          );
         });
         if (onlyOurs) return;
-        if (headerNeedsFilter(header)) {
+        if (headerNeedsEnhance(header)) {
           scheduleEnhance();
         }
       });
