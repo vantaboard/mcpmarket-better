@@ -257,6 +257,24 @@ function headerNeedsFilter(header: HTMLElement): boolean {
   return hasSearch && !hasRow;
 }
 
+/** Icon-only tabs: expose label via native tooltip + aria-label. */
+function ensureTypeTabTooltips(header: HTMLElement): void {
+  const tabs = header.querySelectorAll<HTMLElement>(
+    '[role="tablist"] [role="tab"]',
+  );
+  for (const tab of tabs) {
+    const label =
+      tab.querySelector("span")?.textContent?.trim() ||
+      tab.textContent?.trim() ||
+      "";
+    if (!label) continue;
+    if (tab.getAttribute("title") !== label) tab.setAttribute("title", label);
+    if (tab.getAttribute("aria-label") !== label) {
+      tab.setAttribute("aria-label", label);
+    }
+  }
+}
+
 export function enhanceSearchChrome(): void {
   if (!isSearchPage()) return;
 
@@ -268,6 +286,7 @@ export function enhanceSearchChrome(): void {
 
   // Layout/hide is pure CSS — only inject the Filter control.
   ensureFilterControl(stack, header);
+  ensureTypeTabTooltips(header);
   ensureSearchInputBound();
 }
 

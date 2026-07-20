@@ -54,6 +54,25 @@ header.sticky.top-14 {
     grid-row: 1;
   }
 
+  /* Icon-only type tabs; labels via title/aria-label tooltips */
+  [role="tablist"] [role="tab"] {
+    gap: 0 !important;
+    padding-left: 0.625rem !important;
+    padding-right: 0.625rem !important;
+  }
+
+  [role="tablist"] [role="tab"] > span {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
   /* Promote search + filter into the parent grid */
   section.py-4 .flex.flex-col > .mmb-search-row {
     display: contents;
