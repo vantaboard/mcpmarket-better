@@ -64,8 +64,15 @@ function onSearchInput(e: Event): void {
   }, DEBOUNCE_MS);
 }
 
-function onTypeTabClick(e: Event): void {
+/**
+ * Host Radix tabs navigate on mousedown (not click). Intercept early in
+ * capture so q / category_slug are not wiped by the host handler.
+ */
+function onTypeTabActivate(e: Event): void {
   if (!isSearchPage()) return;
+  // Ignore non-primary mouse buttons on mouse/pointer events.
+  if ("button" in e && (e as MouseEvent).button !== 0) return;
+
   const target = e.target as Element | null;
   const tab = target?.closest?.(
     `${HEADER_SEL} [role="tablist"] [role="tab"]`,
@@ -125,7 +132,17 @@ export function startSearchNavigation(): void {
     documentListenersBound = true;
 
     document.addEventListener("submit", onSearchSubmit, true);
-    document.addEventListener("click", onTypeTabClick, true);
+    // Radix tabs fire navigation on mousedown; also catch click/keydown.
+    document.addEventListener("mousedown", onTypeTabActivate, true);
+    document.addEventListener("click", onTypeTabActivate, true);
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        onTypeTabActivate(e);
+      },
+      true,
+    );
 
     window.addEventListener("popstate", () => {
       lastSyncedHref = "";
