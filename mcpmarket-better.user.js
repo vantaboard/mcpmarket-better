@@ -2,7 +2,7 @@
 // @name             MCP Market Better
 // @name:en          MCP Market Better
 // @namespace        https://github.com/vantaboard/mcpmarket-better
-// @version          0.1.0
+// @version          0.2.0
 // @author           Brighten Tompkins <brightenqtompkins@gmail.com>
 // @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
 // @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, and open-in-background tabs.
