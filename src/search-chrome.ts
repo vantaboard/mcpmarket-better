@@ -31,9 +31,11 @@ function getStack(header: HTMLElement): HTMLElement | null {
 }
 
 function getSelectedCategory(header: HTMLElement): string | null {
+  // URL is source of truth — host chip/placeholder lag after soft clears.
   const slug = new URLSearchParams(location.search).get("category_slug");
+  if (!slug) return null;
 
-  if (slug && categoriesCache) {
+  if (categoriesCache) {
     const match = categoriesCache.find((c) => c.slug === slug);
     if (match) return match.name;
   }
@@ -50,11 +52,27 @@ function getSelectedCategory(header: HTMLElement): string | null {
   const fromPlaceholder = placeholder.match(/\.\.\.\s*(.+)$/);
   if (fromPlaceholder) return fromPlaceholder[1].trim();
 
-  return null;
+  // Last resort: title-case the slug
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function navigateCategory(slug: string | null): void {
   softSearchOrNavigate({ category_slug: slug });
+  // Soft nav uses replaceState; sync Filter label immediately from URL.
+  const header = getHeader();
+  if (!header) return;
+  if (!slug) {
+    const input = header.querySelector<HTMLInputElement>(
+      'input[name="search"]',
+    );
+    if (input?.placeholder) {
+      input.placeholder = input.placeholder.replace(/\.\.\.\s+.+$/, "...");
+    }
+  }
+  syncFilterControl(header);
 }
 
 async function loadCategories(header: HTMLElement): Promise<Category[]> {
