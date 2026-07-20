@@ -2,10 +2,10 @@
 // @name             MCP Market Better
 // @name:en          MCP Market Better
 // @namespace        https://github.com/vantaboard/mcpmarket-better
-// @version          0.2.2
+// @version          0.2.3
 // @author           Brighten Tompkins <brightenqtompkins@gmail.com>
-// @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.
-// @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.
+// @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.
+// @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.
 // @match            *://mcpmarket.com/search*
 // @match            *://mcpmarket.com/*
 // @license          MIT
@@ -2053,15 +2053,23 @@ button[data-mmb-load-more="1"] {
   } // ./src/home-search.ts
 
   /**
-   * Homepage hero search: clicking/focusing the box goes to /search
-   * (we can't change mcpmarket.com itself — this is a userscript enhance).
+   * Landing / category hero search: clicking/focusing the box goes to /search
+   * (userscript-side — we can't change mcpmarket.com itself).
    */
   let home_search_listenersBound = false;
-  function isHomePage() {
-    const path = location.pathname.replace(/\/+$/, "") || "/";
-    return path === "/";
+  function normalizedPath() {
+    return location.pathname.replace(/\/+$/, "") || "/";
   }
-  function isHomeSearchInput(el) {
+  /** Home or /categories/:slug — not the sticky /search chrome. */
+  function isLandingSearchPage() {
+    const path = normalizedPath();
+    return path === "/" || path.startsWith("/categories/");
+  }
+  function categorySlugFromPath() {
+    const match = normalizedPath().match(/^\/categories\/([^/]+)$/);
+    return match?.[1] ?? null;
+  }
+  function isLandingSearchInput(el) {
     if (!(el instanceof HTMLInputElement)) return false;
     if (el.name !== "search") return false;
     // Search-page chrome lives in the sticky search header — leave that alone.
@@ -2069,19 +2077,29 @@ button[data-mmb-load-more="1"] {
     return true;
   }
   function goToSearch(input) {
-    const q = input?.value?.trim();
-    const url = q ? `/search?q=${encodeURIComponent(q)}` : "/search";
     if (location.pathname.includes("/search")) return;
-    location.assign(url);
+    const params = new URLSearchParams();
+    const q = input?.value?.trim();
+    if (q) params.set("q", q);
+    const category = categorySlugFromPath();
+    if (category) params.set("category_slug", category);
+    // Stable order used elsewhere: category_slug → q → type
+    const ordered = new URLSearchParams();
+    const slug = params.get("category_slug");
+    const query = params.get("q");
+    if (slug) ordered.set("category_slug", slug);
+    if (query) ordered.set("q", query);
+    const qs = ordered.toString();
+    location.assign("/search" + (qs ? `?${qs}` : ""));
   }
   function onActivate(e) {
-    if (!isHomePage()) return;
+    if (!isLandingSearchPage()) return;
     const target = e.target;
     const input =
-      (target instanceof HTMLInputElement && isHomeSearchInput(target)
+      (target instanceof HTMLInputElement && isLandingSearchInput(target)
         ? target
         : target?.closest?.("input[name='search']")) ?? null;
-    if (!isHomeSearchInput(input)) return;
+    if (!isLandingSearchInput(input)) return;
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
@@ -2090,7 +2108,7 @@ button[data-mmb-load-more="1"] {
   function startHomeSearchRedirect() {
     if (home_search_listenersBound) return;
     home_search_listenersBound = true;
-    // Capture early so the host doesn't keep focus on the home input.
+    // Capture early so the host doesn't keep focus on the landing input.
     document.addEventListener("pointerdown", onActivate, true);
     document.addEventListener("focusin", onActivate, true);
     document.addEventListener("click", onActivate, true);

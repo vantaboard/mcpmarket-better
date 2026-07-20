@@ -13,8 +13,8 @@ module.exports = {
   version: version,
   author: authorName,
   description: {
-    $: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.",
-    en: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and homepage search → /search.",
+    $: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.",
+    en: "Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.",
   },
   // Load site-wide so SPA navigations from / → /search still enhance.
   // Features no-op off /search via isSearchPage() checks.

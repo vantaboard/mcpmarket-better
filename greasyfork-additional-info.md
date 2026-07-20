@@ -9,7 +9,7 @@ Improves the [mcpmarket.com](https://mcpmarket.com/search) search experience.
 - Favorites mode: browse saved items; scroll position preserved both ways
 - Infinite scroll (replaces "Load More")
 - Left-click opens a result in a **background** tab (`GM.openInTab`)
-- Homepage search box click/focus goes to `/search`
+- Homepage / category page search box click/focus goes to `/search` (keeps `category_slug`)
 
 ### Install
 
