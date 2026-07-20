@@ -13,6 +13,6 @@ module.exports = {
   require: [
     `https://cdn.jsdelivr.net/npm/jquery@${dependencies.jquery}/dist/jquery.min.js`,
   ],
-  grant: ["GM.xmlHttpRequest"],
+  grant: ["GM.xmlHttpRequest", "GM.setValue", "GM.getValue"],
   "run-at": "document-end",
 };
