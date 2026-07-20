@@ -1,10 +1,14 @@
-/* Target host sticky search chrome directly — do not rely on classes we add
-   to React-owned nodes (React re-renders wipe those). */
+/* On /search: let the main site nav (MCP Market logo bar) scroll away… */
+body:has(header.sticky.top-14) header.sticky.top-0 {
+  position: relative !important;
+  top: auto !important;
+}
 
+/* …and keep only the search chrome sticky at the top of the viewport. */
 header.sticky.top-14 {
-  /* Stay sticky; only override host top-14 / md:top-16 offset */
   position: sticky !important;
   top: 0 !important;
+  z-index: 50 !important;
 
   section.py-4 {
     padding-top: 0.375rem !important;
