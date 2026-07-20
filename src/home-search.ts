@@ -1,3 +1,5 @@
+import { markSearchShouldFocus } from "./search-focus";
+
 /**
  * Landing / category hero search: clicking/focusing the box goes to /search
  * (userscript-side — we can't change mcpmarket.com itself).
@@ -46,6 +48,7 @@ function goToSearch(input?: HTMLInputElement): void {
   if (query) ordered.set("q", query);
 
   const qs = ordered.toString();
+  markSearchShouldFocus();
   location.assign("/search" + (qs ? `?${qs}` : ""));
 }
 

@@ -2,7 +2,7 @@
 // @name             MCP Market Better
 // @name:en          MCP Market Better
 // @namespace        https://github.com/vantaboard/mcpmarket-better
-// @version          0.2.3
+// @version          0.2.4
 // @author           Brighten Tompkins <brightenqtompkins@gmail.com>
 // @description      Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.
 // @description:en   Improves mcpmarket.com search: compact sticky chrome, soft search while typing, favorites with hearts, infinite scroll, open-in-background tabs, and home/category search → /search.
@@ -2050,6 +2050,57 @@ button[data-mmb-load-more="1"] {
     window.setTimeout(() => {
       void enhanceCardHearts();
     }, 1000);
+  } // ./src/search-focus.ts
+
+  const FOCUS_KEY = "mmb.focusSearch";
+  /** Set before navigating from home/category search to /search. */
+  function markSearchShouldFocus() {
+    try {
+      sessionStorage.setItem(FOCUS_KEY, "1");
+    } catch {
+      // private mode / blocked storage — focus just won't auto-apply
+    }
+  }
+  function takeFocusRequest() {
+    try {
+      if (sessionStorage.getItem(FOCUS_KEY) !== "1") return false;
+      sessionStorage.removeItem(FOCUS_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function getSearchPageInput() {
+    return document.querySelector('header.sticky.top-14 input[name="search"]');
+  }
+  function focusInput(input) {
+    input.focus({ preventScroll: true });
+    const len = input.value.length;
+    try {
+      input.setSelectionRange(len, len);
+    } catch {
+      // some inputs reject setSelectionRange
+    }
+    return document.activeElement === input;
+  }
+  /**
+   * If we arrived from a landing search click, focus the /search input
+   * (retries through hydration).
+   */
+  function startSearchFocusOnArrive() {
+    if (!location.pathname.includes("/search")) return;
+    if (!takeFocusRequest()) return;
+    const delays = [0, 50, 150, 300, 600, 1200];
+    let done = false;
+    const attempt = () => {
+      if (done) return;
+      const input = getSearchPageInput();
+      if (!input) return;
+      if (focusInput(input)) done = true;
+    };
+    for (const ms of delays) {
+      window.setTimeout(attempt, ms);
+    }
   } // ./src/home-search.ts
 
   /**
@@ -2090,6 +2141,7 @@ button[data-mmb-load-more="1"] {
     if (slug) ordered.set("category_slug", slug);
     if (query) ordered.set("q", query);
     const qs = ordered.toString();
+    markSearchShouldFocus();
     location.assign("/search" + (qs ? `?${qs}` : ""));
   }
   function onActivate(e) {
@@ -2681,6 +2733,7 @@ button[data-mmb-load-more="1"] {
     startHomeSearchRedirect();
     startSearchChromeObserver();
     startSearchNavigation();
+    startSearchFocusOnArrive();
     startFavorites();
     startCardNavigation();
     ensureInfiniteScroll();

@@ -3,6 +3,7 @@ import { startCardNavigation } from "./card-navigation";
 import { startFavorites } from "./favorites-ui";
 import { startHomeSearchRedirect } from "./home-search";
 import { startSearchChromeObserver } from "./search-chrome";
+import { startSearchFocusOnArrive } from "./search-focus";
 import { startSearchNavigation } from "./search-navigation";
 import { ensureInfiniteScroll } from "./soft-search";
 
@@ -11,6 +12,7 @@ async function main() {
   startHomeSearchRedirect();
   startSearchChromeObserver();
   startSearchNavigation();
+  startSearchFocusOnArrive();
   startFavorites();
   startCardNavigation();
   ensureInfiniteScroll();
