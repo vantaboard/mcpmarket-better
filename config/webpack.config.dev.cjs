@@ -28,7 +28,8 @@ const cfg = merge(webpackConfig, {
     filename: "index.[name].js",
     path: path.resolve(__dirname, "../dist"),
   },
-  devtool: "eval-source-map",
+  // Avoid eval-* source maps: mcpmarket.com CSP blocks unsafe-eval in userscripts.
+  devtool: "inline-source-map",
   watch: true,
   watchOptions: {
     ignored: /node_modules/,
