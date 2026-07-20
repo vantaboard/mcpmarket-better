@@ -208,12 +208,14 @@ function syncFilterControl(header: HTMLElement): void {
 }
 
 /**
- * Append Filter beside the search field without wrapping React-owned nodes.
- * Layout is handled by CSS grid on the existing stack.
+ * Wrap search + Filter in a flex row (full grid width) so the input
+ * fills up to the Filter with only a small gap — no empty column.
  */
 function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
-  const existing = stack.querySelector<HTMLElement>(":scope > .mmb-filter");
-  if (existing) {
+  const existingRow = stack.querySelector<HTMLElement>(
+    ":scope > .mmb-search-row",
+  );
+  if (existingRow) {
     syncFilterControl(header);
     return;
   }
@@ -222,6 +224,12 @@ function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
     ':scope > .flex-1:has(input[name="search"])',
   );
   if (!searchWrap) return;
+
+  const row = document.createElement("div");
+  row.className = "mmb-search-row";
+  row.setAttribute("data-mmb", "search-row");
+  searchWrap.before(row);
+  row.appendChild(searchWrap);
 
   const filterRoot = document.createElement("div");
   filterRoot.className = "mmb-filter";
@@ -260,8 +268,7 @@ function ensureFilterControl(stack: HTMLElement, header: HTMLElement): void {
 
   filterRoot.appendChild(btn);
   filterRoot.appendChild(panel);
-  // Insert after the search wrap so grid placement is stable.
-  searchWrap.after(filterRoot);
+  row.appendChild(filterRoot);
 
   const selected = getSelectedCategory(header);
   updateFilterButtonLabel(btn, selected);
@@ -274,8 +281,8 @@ function headerNeedsFilter(header: HTMLElement): boolean {
   const stack = getStack(header);
   if (!stack) return false;
   const hasSearch = !!stack.querySelector('input[name="search"]');
-  const hasFilter = !!stack.querySelector(":scope > .mmb-filter");
-  return hasSearch && !hasFilter;
+  const hasRow = !!stack.querySelector(":scope > .mmb-search-row");
+  return hasSearch && !hasRow;
 }
 
 export function enhanceSearchChrome(): void {
@@ -364,7 +371,7 @@ export function startSearchChromeObserver(): void {
       const onlyOurs = mutations.every((m) => {
         const el =
           m.target instanceof Element ? m.target : m.target.parentElement;
-        return !!el?.closest?.(".mmb-filter");
+        return !!el?.closest?.(".mmb-filter, .mmb-search-row");
       });
       if (onlyOurs) return;
 

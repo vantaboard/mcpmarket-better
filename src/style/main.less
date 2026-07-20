@@ -33,17 +33,20 @@ header.sticky.top-14 {
     justify-self: end;
   }
 
-  section.py-4 .flex.flex-col > .flex-1:has(input[name="search"]) {
-    grid-column: 1;
+  /* Search + Filter share one full-width row so the input fills up to Filter */
+  section.py-4 .flex.flex-col > .mmb-search-row {
+    grid-column: 1 / -1;
     grid-row: 2;
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
     min-width: 0;
   }
 
-  section.py-4 .flex.flex-col > .mmb-filter {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-    align-self: stretch;
+  section.py-4 .flex.flex-col > .mmb-search-row > .flex-1 {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   /* Hide category chips without removing React nodes */
@@ -184,13 +187,9 @@ header.sticky.top-14 {
   }
 
   header.sticky.top-14 section.py-4 .flex.flex-col > div:has([role="tablist"]),
-  header.sticky.top-14 section.py-4 .flex.flex-col > .mmb-filter {
+  header.sticky.top-14 section.py-4 .flex.flex-col > .mmb-search-row {
     grid-column: 1;
-    justify-self: start;
-  }
-
-  header.sticky.top-14 section.py-4 .flex.flex-col > .flex-1:has(input[name="search"]) {
-    grid-column: 1;
+    justify-self: stretch;
   }
 
   .mmb-filter-label {
