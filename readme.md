@@ -7,8 +7,8 @@ Built with the [webpack-userscript-template](https://github.com/trim21/webpack-u
 ## Dev
 
 1. Allow Tampermonkey access to local file URIs ([faq](https://tampermonkey.net/faq.php?ext=dhdg#Q204)).
-2. Install deps: `npm ci`
-3. Start the watcher: `npm run dev`
+2. Install deps: `pnpm install`
+3. Start the watcher: `pnpm run dev`
 
 You will see two files in `./dist/`:
 
@@ -34,7 +34,7 @@ The script runs on:
 ## Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Production output: `dist/index.prod.user.js`

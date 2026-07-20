@@ -6,9 +6,10 @@
     "name": "Brighten Tompkins",
     "email": "brightenqtompkins@gmail.com"
   },
+  "packageManager": "pnpm@11.12.0",
   "scripts": {
     "format": "prettier -w ./",
-    "analize": "cross-env npm_config_report=true npm run build",
+    "analize": "cross-env npm_config_report=true pnpm run build",
     "build": "webpack --config config/webpack.config.prod.cjs",
     "dev": "webpack --config config/webpack.config.dev.cjs",
     "prepare": "husky install",
