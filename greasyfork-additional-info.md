@@ -7,7 +7,7 @@ Improves the [mcpmarket.com](https://mcpmarket.com/search) search experience.
 - Category filter dropdown (keeps `category_slug` + `type` in the URL)
 - Heart favorites on result cards, persisted with `GM.setValue`
 - Favorites mode: browse saved items; scroll position preserved both ways
-- Infinite scroll (replaces “Load More”)
+- Infinite scroll (replaces "Load More")
 - Left-click opens a result in a **background** tab (`GM.openInTab`)
 
 ### Install
