@@ -24,6 +24,8 @@ Livereload is enabled by default; use the [LiveReload Chrome extension](https://
 
 After changing userscript metadata in [`config/metadata.cjs`](./config/metadata.cjs), restart webpack and reinstall `dist/index.dev.user.js`.
 
+If the console shows `EvalError` / `unsafe-eval` on mcpmarket.com (common with Tampermonkey Beta + UserScripts API), reinstall after a rebuild so `@inject-into content` is present. Alternatively set Tampermonkey → Settings → **Modify existing content security policy (CSP) headers** to **Remove entirely**.
+
 ## Match
 
 The script runs on:
