@@ -29,7 +29,8 @@ const HEART_SEL = ".mmb-fav-heart";
 let listenersBound = false;
 let cardObserver: MutationObserver | null = null;
 let resultsSnapshot: ResultsViewSnapshot | null = null;
-let savedScrollY = 0;
+let savedSearchScrollY = 0;
+let savedFavoritesScrollY = 0;
 
 function syncSearchInputFromUrl(): void {
   const input = document.querySelector<HTMLInputElement>(
@@ -255,24 +256,27 @@ export async function renderFavoritesGrid(): Promise<void> {
 }
 
 async function enterFavoritesMode(): Promise<void> {
-  // Remember search place before we shrink the page to favorites.
-  savedScrollY = window.scrollY;
+  // Remember search place before we swap to favorites.
+  savedSearchScrollY = window.scrollY;
   resultsSnapshot = captureResultsView();
 
   setFavoritesMode(true);
   syncFavModeButton();
   await renderFavoritesGrid();
 
-  // Without this, the old scrollY lands at the bottom of the shorter page.
-  scrollToY(0);
+  // Restore prior favorites scroll (0 on first visit).
+  scrollToY(savedFavoritesScrollY);
 }
 
 async function exitFavoritesMode(): Promise<void> {
+  // Remember favorites place for the next visit.
+  savedFavoritesScrollY = window.scrollY;
+
   setFavoritesMode(false);
   syncFavModeButton();
 
   const snap = resultsSnapshot;
-  const y = savedScrollY;
+  const y = savedSearchScrollY;
   resultsSnapshot = null;
 
   if (snap && restoreResultsView(snap)) {
