@@ -39,4 +39,13 @@ The script runs on:
 pnpm run build
 ```
 
-Production output: `dist/index.prod.user.js`
+Production output: `dist/index.prod.user.js` — this is the file to upload to [Greasy Fork](https://greasyfork.org/).
+
+### Publish to Greasy Fork
+
+1. `pnpm run build`
+2. Sign in at [greasyfork.org](https://greasyfork.org/)
+3. [Post a new script](https://greasyfork.org/en/script_versions/new) → paste or upload `dist/index.prod.user.js`
+4. Add an additional info blurb (features list), choose language **English**, submit
+
+Optional later: sync updates from a public GitHub repo (Greasy Fork → script admin → sync).

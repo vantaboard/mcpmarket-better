@@ -11,16 +11,10 @@ importers:
       '@trim21/gm-fetch':
         specifier: ^0.3.0
         version: 0.3.0
-      jquery:
-        specifier: ^4.0.0
-        version: 4.0.0
     devDependencies:
       '@types/greasemonkey':
         specifier: ^4.0.7
         version: 4.0.7
-      '@types/jquery':
-        specifier: ^4.0.1
-        version: 4.0.1
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
@@ -119,9 +113,6 @@ packages:
 
   '@types/greasemonkey@4.0.7':
     resolution: {integrity: sha512-DuYBRf/T4zixO/xhQ3eicZCBjjOgbSSXuHP5XkLNf/UBayrJpBniP9il/AQaPy0lffl4Bco48zgHL+pZmQ6Q0A==}
-
-  '@types/jquery@4.0.1':
-    resolution: {integrity: sha512-9a59A/tycXgYuPABcp6/3spSShn0NT2UOM4EfHvMumjYi4lJWTsK5SZWjhx3yRm9IHGCeWXdV2YfNsrWrft/CA==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -509,9 +500,6 @@ packages:
   jest-worker@27.5.1:
     resolution: {integrity: sha512-7vuh85V5cdDofPyxn58nrPjBktZo0u9x1g8WtjQol+jZDaE+fhN+cIvTj11GndBnMnyfrUOG1sZQxCdjKh+DKg==}
     engines: {node: '>= 10.13.0'}
-
-  jquery@4.0.0:
-    resolution: {integrity: sha512-TXCHVR3Lb6TZdtw1l3RTLf8RBWVGexdxL6AC8/e0xZKEpBflBsjh9/8LXw+dkNFuOyW9B7iB3O1sP7hS0Kiacg==}
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
@@ -1071,8 +1059,6 @@ snapshots:
 
   '@types/greasemonkey@4.0.7': {}
 
-  '@types/jquery@4.0.1': {}
-
   '@types/json-schema@7.0.15': {}
 
   '@types/less@3.0.8': {}
@@ -1445,8 +1431,6 @@ snapshots:
       '@types/node': 22.20.1
       merge-stream: 2.0.0
       supports-color: 8.1.1
-
-  jquery@4.0.0: {}
 
   json-schema-traverse@1.0.0: {}
 
